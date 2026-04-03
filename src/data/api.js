@@ -45,6 +45,19 @@ export async function verifyToken(token) {
 
 // ✅ Logout — ล้างทุก key ให้ครบ
 export async function logout() {
+  // ดึงข้อมูลก่อน clear
+  const displayName = await AsyncStorage.getItem("displayName");
+  const steamId = await AsyncStorage.getItem("steamId");
+  const userType = await AsyncStorage.getItem("userType");
+
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(`🔴 LOGOUT`);
+  console.log(`👤 Name    : ${displayName}`);
+  console.log(`🆔 SteamId : ${steamId}`);
+  console.log(`🏷️  Type    : ${userType}`);
+  console.log(`🕐 Time    : ${new Date().toLocaleString("th-TH")}`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
   await AsyncStorage.multiRemove([
     "token",
     "steamId",
@@ -90,7 +103,7 @@ export async function fetchItems({
   if (search) params.append("search", search);
 
   const cat = category || type;
-  if (cat && cat !== 'All') params.append('category', cat);
+  if (cat && cat !== "All") params.append("category", cat);
 
   const url = `${BASE_URL}/items?${params}`;
   console.log("🌐 [API] fetchItems URL:", url); // ← เพิ่มตรงนี้

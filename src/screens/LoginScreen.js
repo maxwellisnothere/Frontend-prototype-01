@@ -18,7 +18,6 @@ const isExpoGo = Constants.appOwnership === "expo";
 WebBrowser.maybeCompleteAuthSession();
 
 const BACKEND_URL = "https://defuse-th-backend-main.onrender.com";
-
 // ข้อมูล Admin (ตั้งค่าได้ตามต้องการ)
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD = "admin@1234";
@@ -31,6 +30,7 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
+    isHandlingAuth.current = false; // ← ต้องมีบรรทัดนี้
     const subscription = Linking.addEventListener("url", handleDeepLink);
     checkExistingToken();
     return () => subscription.remove();
@@ -41,25 +41,46 @@ export default function LoginScreen({ navigation }) {
     const token = await AsyncStorage.getItem("token");
     if (token) navigation.replace("Main");
   };
-
+  const isHandlingAuth = React.useRef(false); // เพิ่มบรรทัดนี้
   // ── Steam Deep Link Handler ─────────────────────────
+
   const handleDeepLink = async ({ url }) => {
-    if (!url.includes("auth/callback") && !url.includes("auth.expo.io")) return;
+    console.log(
+      "🔗 handleDeepLink called, isHandling:",
+      isHandlingAuth.current,
+    ); // เพิ่ม
+    if (isHandlingAuth.current) {
+      console.log("⛔ blocked by isHandlingAuth"); // เพิ่ม
+      return;
+    }
+    isHandlingAuth.current = true;
+
+    console.log("🔗 Deep link received:", url.split("?")[0]);
+
+    if (!url.includes("auth/callback") && !url.includes("auth.expo.io")) {
+      console.log("⛔ URL ไม่ตรง pattern, skip");
+      isHandlingAuth.current = false;
+      return;
+    }
+
     const parsed = Linking.parse(url);
     const { token, steamId, name, error } = parsed.queryParams;
 
     if (error) {
+      console.error("❌ Login error:", error);
       Alert.alert("❌ Login ล้มเหลว", error);
       setLoading(false);
+      isHandlingAuth.current = false;
       return;
     }
     if (token) {
+      const decodedName = decodeURIComponent(name);
+
       await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem("steamId", steamId);
-      await AsyncStorage.setItem("displayName", decodeURIComponent(name));
+      await AsyncStorage.setItem("displayName", decodedName);
       await AsyncStorage.setItem("userType", "steam");
 
-      // ดึง avatar จาก Backend หลัง login สำเร็จ
       try {
         const verifyRes = await fetch(`${BACKEND_URL}/auth/verify`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -68,52 +89,62 @@ export default function LoginScreen({ navigation }) {
         if (verifyData.success && verifyData.user?.avatar) {
           await AsyncStorage.setItem("avatar", verifyData.user.avatar);
         }
-      } catch {}
+      } catch (e) {
+        console.error("⚠️ Verify failed:", e);
+      }
 
-      navigation.replace("Main");
+      isHandlingAuth.current = false;
+      navigation.reset({ index: 0, routes: [{ name: "Main" }] }); // ← navigate ครั้งเดียว
+    } else {
+      console.warn("⚠️ No token in URL");
+      setLoading(false);
+      isHandlingAuth.current = false;
+    }
+  };
+  // ── Steam Login ─────────────────────────────────────
+  const handleSteamLogin = async () => {
+    console.log("🔥 handleSteamLogin called");
+    isHandlingAuth.current = false; // ✅ รีเซ็ตก่อนเปิด browser ทุกครั้ง
+    setLoading(true);
+    try {
+      const redirectUri = "myapp://auth/callback";
+      console.log("📌 redirectUri:", redirectUri);
+      console.log("🌐 Opening browser...");
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        `${BACKEND_URL}/auth/steam?redirect=${encodeURIComponent(redirectUri)}`,
+        redirectUri,
+      );
+
+      console.log("✅ result type:", result.type);
+      console.log("✅ result url:", result.url?.split("?")[0] ?? "none");
+
+      if (result.type === "success" && result.url) {
+        await handleDeepLink({ url: result.url });
+      } else {
+        console.warn("⚠️ Browser closed, type:", result.type);
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error("Steam login error:", err);
+      setLoading(false);
     }
   };
 
-  // ── Steam Login ─────────────────────────────────────
-const handleSteamLogin = async () => {
-  console.log("🔥 handleSteamLogin called");
-  setLoading(true);
-  try {
-    const redirectUri = isExpoGo
-      ? AuthSession.makeRedirectUri({ useProxy: true })
-      : "myapp://auth/callback";
-
-    console.log("📌 redirectUri:", redirectUri); // ← เพิ่ม
-    console.log("📌 isExpoGo:", isExpoGo);       // ← เพิ่ม
-
-    const result = await WebBrowser.openAuthSessionAsync(
-      `${BACKEND_URL}/auth/steam?redirect=${encodeURIComponent(redirectUri)}`,
-      redirectUri,
-    );
-
-    console.log("✅ result:", JSON.stringify(result)); // ← เพิ่ม
-
-    if (result.type === "success" && result.url) {
-      await handleDeepLink({ url: result.url });
-    } else {
-      setLoading(false);
-    }
-  } catch (err) {
-    console.error("Steam login error:", err);
-    setLoading(false);
-  }
-};
-
   // ── Admin Login ─────────────────────────────────────
   const handleAdminLogin = async () => {
+    // ✅ เช็ค credentials ก่อน
+    isHandlingAuth.current = false; // ✅ รีเซ็ตทุกครั้ง
+    setLoading(true);
     if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+      console.warn("❌ Wrong credentials");
       Alert.alert("❌ ผิด", "Username หรือ Password ไม่ถูกต้อง");
       return;
     }
 
     setLoading(true);
     try {
-      // เรียก Mock Login API ด้วย Admin SteamId
+      console.log("📡 Calling mock-login API...");
       const res = await fetch(`${BACKEND_URL}/auth/mock-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,17 +154,31 @@ const handleSteamLogin = async () => {
         }),
       });
       const data = await res.json();
+      console.log("📡 mock-login response:", JSON.stringify(data));
 
       if (data.success) {
+        // ✅ log อยู่ตรงนี้ถึงจะถูก — หลังได้ data แล้ว
+        // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        // console.log(`🟢 ADMIN LOGIN SUCCESS`);
+        // console.log(`👤 Name    : ${data.displayName}`);
+        // console.log(`🆔 SteamId : ${data.steamId}`);
+        // console.log(`🕐 Time    : ${new Date().toLocaleString("th-TH")}`);
+        // console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         await AsyncStorage.setItem("token", data.token);
         await AsyncStorage.setItem("steamId", data.steamId);
         await AsyncStorage.setItem("displayName", data.displayName);
-        await AsyncStorage.setItem("userType", "admin"); // บันทึกว่าเป็น admin
-        navigation.replace("Main");
+        await AsyncStorage.setItem("userType", "admin");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Main" }],
+        });
       } else {
+        console.error("❌ mock-login failed:", data.error);
         Alert.alert("Error", data.error || "Login ล้มเหลว");
       }
     } catch (err) {
+      console.error("❌ Network error:", err);
       Alert.alert("Error", "ไม่สามารถเชื่อมต่อ Server ได้");
     } finally {
       setLoading(false);

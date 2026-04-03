@@ -12,8 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { fetchInventory, getStoredUser } from "../data/api";  
-
+import { fetchInventory, getStoredUser } from "../data/api";
+import { useFocusEffect } from "@react-navigation/native"; // เพิ่ม import กลับมา
 const CATEGORIES = [
   { id: "all", label: "All", icon: "🔫" },
   { id: "Knives", label: "Knives", icon: "🔪" },
@@ -27,18 +27,30 @@ const CATEGORIES = [
 
 const ItemCard = ({ item, onPress }) => (
   <TouchableOpacity style={cs.card} onPress={onPress} activeOpacity={0.8}>
-    <View style={[cs.rarityBar, { backgroundColor: item.rarityColor || "#B0C3D9" }]} />
+    <View
+      style={[cs.rarityBar, { backgroundColor: item.rarityColor || "#B0C3D9" }]}
+    />
     <View style={cs.imageBox}>
       {item.image ? (
-        <Image source={{ uri: item.image }} style={cs.image} resizeMode="contain" />
+        <Image
+          source={{ uri: item.image }}
+          style={cs.image}
+          resizeMode="contain"
+        />
       ) : (
         <Text style={cs.noImage}>🔫</Text>
       )}
     </View>
     <View style={cs.info}>
-      <Text style={cs.weapon} numberOfLines={1}>{item.weapon}</Text>
-      <Text style={cs.skin} numberOfLines={1}>{item.skin}</Text>
-      <Text style={cs.price}>฿{(item.basePrice || item.price || 0).toLocaleString()}</Text>
+      <Text style={cs.weapon} numberOfLines={1}>
+        {item.weapon}
+      </Text>
+      <Text style={cs.skin} numberOfLines={1}>
+        {item.skin}
+      </Text>
+      <Text style={cs.price}>
+        ฿{(item.basePrice || item.price || 0).toLocaleString()}
+      </Text>
     </View>
   </TouchableOpacity>
 );
@@ -51,10 +63,16 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [steamId, setSteamId] = useState(null);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
+  // useEffect(() => {
+  //   loadUser();
+  // }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔄 HomeScreen focused"); // เพิ่ม
+      setSteamId(null);
+      loadUser();
+    }, []),
+  );
   useEffect(() => {
     if (steamId) loadInventory();
   }, [steamId]);
@@ -66,13 +84,25 @@ export default function HomeScreen({ navigation }) {
   const loadUser = async () => {
     try {
       const user = await getStoredUser();
-      if (user?.steamId) setSteamId(user.steamId);
-      else setLoading(false);
-    } catch {
+      console.log("🔍 loadUser called, user:", user?.steamId || "null"); // เพิ่ม
+      if (user?.steamId) {
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        console.log(`🟢 USER ENTERED APP`);
+        console.log(`👤 Name    : ${user.displayName}`);
+        console.log(`🆔 SteamId : ${user.steamId}`);
+        console.log(`🏷️  Type    : ${user.userType}`);
+        console.log(`🕐 Time    : ${new Date().toLocaleString("th-TH")}`);
+        console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        setSteamId(user.steamId);
+      } else {
+        console.log("⚠️ No user found in storage"); // เพิ่ม
+        setLoading(false);
+      }
+    } catch (e) {
+      console.error("❌ loadUser error:", e); // เพิ่ม
       setLoading(false);
     }
   };
-
   const loadInventory = async () => {
     setLoading(true);
     try {
@@ -93,7 +123,7 @@ export default function HomeScreen({ navigation }) {
         (i) =>
           i.name?.toLowerCase().includes(q) ||
           i.weapon?.toLowerCase().includes(q) ||
-          i.skin?.toLowerCase().includes(q)
+          i.skin?.toLowerCase().includes(q),
       );
     }
     if (activeCategory !== "all") {
@@ -124,7 +154,10 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity style={s.iconBtn} onPress={() => loadInventory()}>
             <Text style={{ fontSize: 22 }}>🔄</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate("Profile")}>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => navigation.navigate("Profile")}
+          >
             <Text style={{ fontSize: 22 }}>👤</Text>
           </TouchableOpacity>
         </View>
@@ -143,7 +176,11 @@ export default function HomeScreen({ navigation }) {
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch("")}>
-              <Text style={{ color: colors.textMuted, fontSize: 16, padding: 4 }}>✕</Text>
+              <Text
+                style={{ color: colors.textMuted, fontSize: 16, padding: 4 }}
+              >
+                ✕
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -164,7 +201,10 @@ export default function HomeScreen({ navigation }) {
           >
             <Text style={s.catIcon}>{cat.icon}</Text>
             <Text
-              style={[s.catLabel, activeCategory === cat.id && s.catLabelActive]}
+              style={[
+                s.catLabel,
+                activeCategory === cat.id && s.catLabelActive,
+              ]}
               numberOfLines={1}
             >
               {cat.label}
@@ -332,7 +372,12 @@ const s = StyleSheet.create({
   },
   resultText: { color: colors.textMuted, fontSize: 12 },
 
-  loadingBox: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+  loadingBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
   loadingText: { color: colors.textSecondary, fontSize: 14 },
 
   grid: { padding: 8, paddingBottom: 30 },
@@ -367,7 +412,17 @@ const cs = StyleSheet.create({
   image: { width: "100%", height: "100%" },
   noImage: { fontSize: 36, opacity: 0.3 },
   info: { padding: 8 },
-  weapon: { color: colors.textMuted, fontSize: 9, fontWeight: "600", marginBottom: 1 },
-  skin: { color: colors.textPrimary, fontSize: 11, fontWeight: "700", marginBottom: 4 },
+  weapon: {
+    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: "600",
+    marginBottom: 1,
+  },
+  skin: {
+    color: colors.textPrimary,
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
   price: { color: colors.primary, fontSize: 12, fontWeight: "800" },
 });
