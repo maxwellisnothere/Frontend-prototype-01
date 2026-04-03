@@ -1,26 +1,40 @@
 # 📱 Defuse TH — Frontend (csgoApp)
-> React Native + Expo app สำหรับ CS2 Skins Marketplace สำหรับคนไทย
+
+> React Native + Expo app สำหรับ CS2 Skins Marketplace สำหรับคนไทย  
 > Backend Repo: [defuse-th-backend](https://github.com/)
 
-
 ---
-##  Build APK BY EXPO
+
+## 🔨 Build APK BY EXPO
+
+```bash
 eas login
-    myapp.pp12345@gmail.com / Myapp@12345
-eas init in => app.json
-    ผูกกับ Account  "owner": "myapp12345",
-    "extra": {
-      "eas": {
-        "projectId": "1c913bc0-0f6b-43ad-9649-7c7fae5f3621"
-      }
-eas build -p android --profile preview = Build
+# myapp.pp12345@gmail.com / Myapp@12345
 
-eas logout = change account
+eas init   # in => app.json
+```
+
+ผูกกับ Account ใน `app.json`:
+
+```json
+{
+  "owner": "myapp12345",
+  "extra": {
+    "eas": {
+      "projectId": "1c913bc0-0f6b-43ad-9649-7c7fae5f3621"
+    }
+  }
+}
+```
+
+```bash
+eas build -p android --profile development   # Build
+
+eas logout   # change account
+```
 
 ---
 
-
----
 ## 🛠️ Tech Stack
 
 | ส่วน | เทคโนโลยี |
@@ -36,8 +50,10 @@ eas logout = change account
 ## ⚙️ ค่าคงที่สำคัญ
 
 ```env
-BACKEND_URL  = https://defuse-th-backend-main.onrender.com
-APP_SCHEME   = myapp://auth/callback
+BACKEND_URL = https://defuse-th-backend-main.onrender.com
+APP_SCHEME  = myapp://auth/callback
+```
+
 ---
 
 ## 📂 โครงสร้างไฟล์
@@ -74,6 +90,7 @@ csgoApp/src/
 ---
 
 ## 🚀 วิธีรัน
+
 ```bash
 # เข้าโฟลเดอร์
 cd csgoApp
@@ -84,8 +101,7 @@ npm install
 # รัน Expo
 npx expo start --clear
 
-# เปิด Android Emulator
-# กด a ใน terminal
+# เปิด Android Emulator → กด a ใน terminal
 ```
 
 ### Build APK
@@ -126,6 +142,7 @@ eas build -p android --profile development
  ↓ ล้าง AsyncStorage → กลับหน้า Login
 ```
 
+---
 
 ## ✅ สิ่งที่ทำเสร็จแล้ว
 
@@ -156,7 +173,6 @@ eas build -p android --profile development
 - [ ] ProfileScreen → Buy History
 - [ ] ProfileScreen → Sale History
 
----
 ---
 
 ## 📄 License
