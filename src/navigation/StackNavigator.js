@@ -7,7 +7,8 @@ import PaymentScreen from '../screens/PaymentScreen';
 import QRPaymentScreen from '../screens/QRPaymentScreen';
 import ItemDetailScreen from '../screens/ItemDetailScreen';
 import SellScreen from '../screens/SellScreen';
-// --- 1. Import หน้า Security เพิ่มเติม ---
+import BuyHistoryScreen from '../screens/BuyHistoryScreen';
+import BuyHistoryDetailScreen from '../screens/BuyHistoryDetailScreen';
 import SecurityScreen from '../screens/SecurityScreen'; 
 
 const Stack = createNativeStackNavigator();
@@ -29,6 +30,9 @@ export default function StackNavigator() {
       <Stack.Screen name="QRPayment" component={QRPaymentScreen} />
       <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
       <Stack.Screen name="Sell" component={SellScreen} />
+      <Stack.Screen name="BuyHistory" component={BuyHistoryScreen} />
+      <Stack.Screen name="BuyHistoryDetail" component={BuyHistoryDetailScreen} />
+      
       
       {/* --- 2. เพิ่มหน้า Security ลงใน Stack --- */}
       <Stack.Screen name="Security" component={SecurityScreen} />

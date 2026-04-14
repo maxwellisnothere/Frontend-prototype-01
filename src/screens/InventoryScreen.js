@@ -1,76 +1,80 @@
-  import React, { useState, useEffect, useMemo } from 'react';
-  import {
-    View, Text, TextInput, TouchableOpacity, StyleSheet,
-    FlatList, Image,
-  } from 'react-native';
-  import { SafeAreaView } from 'react-native-safe-area-context';
-  import { colors } from '../theme/colors';
-  import { fetchBalance } from '../data/api';
+import { fetchInventory, getStoredUser, fetchBalance } from '../data/api';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  FlatList, Image, ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import { colors } from '../theme/colors';
 
-  const FILTERS = ['Sellable', 'Trade Lock', 'Containers'];
+const BASE_URL = 'https://defuse-th-backend-main.onrender.com';
+const FILTERS  = ['Sellable', 'Trade Lock', 'Containers'];
 
-  const MOCK_INVENTORY = [
-    {
-      id: 'inv-1', name: 'AK-47 | Redline', weapon: 'AK-47', skin: 'Redline',
-      rarity: 'Classified', rarityColor: '#D32CE6', wear: 'Field-Tested',
-      price: 18450, float: 0.2341, category: 'Guns',
-      tradeLock: false, stattrak: false, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlPPNSI_-RHGavzedxuPUnFniykEtzsWWBzoyuIiifaAchDZUjTOZe4RC_w4buM-6z7wzbgokUyzK-0H08hRGDMA',
-    },
-    {
-      id: 'inv-2', name: 'Karambit | Fade', weapon: 'Karambit', skin: 'Fade',
-      rarity: 'Covert', rarityColor: '#EB4B4B', wear: 'Factory New',
-      price: 245000, float: 0.0034, category: 'Knife',
-      tradeLock: true, stattrak: true, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q7uCvZaZkNM-SD1iWwOpzj-1gSCGn20tztm_UyIn_JHKUbgYlWMcmQ-ZcskSwldS0MOnntAfd3YlMzH35jntXrnE8SOGRGG8',
-    },
-    {
-      id: 'inv-3', name: 'Glock-18 | Fade', weapon: 'Glock-18', skin: 'Fade',
-      rarity: 'Restricted', rarityColor: '#8847FF', wear: 'Factory New',
-      price: 9800, float: 0.0112, category: 'Guns',
-      tradeLock: false, stattrak: false, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1a7s2oaaBoH_yaCW-Ej-8u5bZvHnq1w0Vz62TUzNj4eCiVblMmXMAkROJeskLpkdXjMrzksVTAy9US8PY25So',
-    },
-    {
-      id: 'inv-4', name: 'CS2 Revolution Case', weapon: 'Case', skin: 'Revolution',
-      rarity: 'Base Grade', rarityColor: '#B0C3D9', wear: null,
-      price: 350, float: null, category: 'Cases',
-      tradeLock: false, stattrak: false, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGJKz2lu_XsnXwtmkJjSU91dh8bj35VTqVBP4io_frHcVuPaoafU1JqiVWWSVkux15OQ8Giiylk0k5mvTnIqpd3PCaQIhWMYkE_lK7EcNeCKW-w',
-    },
-    {
-      id: 'inv-5', name: 'USP-S | Kill Confirmed', weapon: 'USP-S', skin: 'Kill Confirmed',
-      rarity: 'Covert', rarityColor: '#EB4B4B', wear: 'Minimal Wear',
-      price: 32500, float: 0.1234, category: 'Guns',
-      tradeLock: false, stattrak: true, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSI-WsG3SA_uV_vO1WTCa9kxQ1vjiBpYPwJiPTcFB2Xpp5TO5cskG9lYCxZu_jsVCL3o4Xnij23ClO5ik9tegFA_It8qHJz1aWe-uc160',
-    },
-    {
-      id: 'inv-6', name: 'Desert Eagle | Blaze', weapon: 'Desert Eagle', skin: 'Blaze',
-      rarity: 'Restricted', rarityColor: '#8847FF', wear: 'Factory New',
-      price: 24500, float: 0.0078, category: 'Guns',
-      tradeLock: false, stattrak: false, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL1m5fn8Sdk7vORbqhsLfWAMWuZxuZi_uI_TX6wxxkjsGXXnImsJ37COlUoWcByEOMOtxa5kdXmNu3htVPZjN1bjXKpkHLRfQU',
-    },
-    {
-      id: 'inv-7', name: 'Specialist Gloves | Crimson Kimono', weapon: 'Specialist Gloves', skin: 'Crimson Kimono',
-      rarity: 'Extraordinary', rarityColor: '#E4AE33', wear: 'Well-Worn',
-      price: 87000, float: 0.4123, category: 'Glove',
-      tradeLock: false, stattrak: false, listed: false,
-      image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk71ruQBH4jYLf-i5U-fe9V7d9JfOaD2uZ0vpJu-hkQCe8qhkusjCKlIvqHjnCOml8U8UoAfkItBLswdbuNbjr5FHdjNkUzSv73C1K5y46tu4EUvAg-6bU3FrBMOE4_9BdcyhkRns5',
-    },
-  ];
+// ── In-memory price cache (ร่วมกับ HomeScreen) ───────────────────────────────
+const priceMemCache = new Map();
+const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 นาที
 
-  const ItemCard = ({ item, onSell, onPress }) => (
+async function fetchSteamPrice(itemName) {
+  if (!itemName || itemName.trim() === '') return null;
+  const cached = priceMemCache.get(itemName);
+  if (cached && Date.now() - cached.ts < PRICE_CACHE_TTL) return cached;
+  try {
+    const res  = await fetch(
+      `${BASE_URL}/market/steam-price-live/${encodeURIComponent(itemName)}`
+    );
+    const json = await res.json();
+    if (json.success && json.lowestThb > 0) {
+      const result = {
+        lowestThb: json.lowestThb,
+        lowestUsd: json.lowestUsd,
+        ts: Date.now(),
+      };
+      priceMemCache.set(itemName, result);
+      return result;
+    }
+  } catch {}
+  return null;
+}
+
+// ── ItemCard — แสดงราคา Steam real-time ──────────────────────────────────────
+const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
+  const [steamThb, setSteamThb]       = useState(null);
+  const [loadingPrice, setLoadingPrice] = useState(true);
+  const mountedRef = useRef(true);
+
+  // สร้าง Steam market name: "AK-47 | Redline (Field-Tested)"
+  const itemName = item.wear
+    ? `${item.weapon} | ${item.skin} (${item.wear})`
+    : item.name || '';
+
+  useEffect(() => {
+    mountedRef.current = true;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingPrice(true);
+      const result = await fetchSteamPrice(itemName);
+      if (!cancelled && mountedRef.current) {
+        const price = result?.lowestThb ?? null;
+        setSteamThb(price);
+        setLoadingPrice(false);
+        // แจ้ง parent เพื่ออัปเดต total value
+        if (price !== null && onPriceLoaded) onPriceLoaded(item.id, price);
+      }
+    };
+    load();
+    return () => { cancelled = true; mountedRef.current = false; };
+  }, [itemName]);
+
+  const displayPrice = steamThb ?? item.price ?? 0;
+  const hasSteam = steamThb !== null && steamThb > 0;
+
+  return (
     <View style={cs.wrapper}>
       <TouchableOpacity style={cs.card} onPress={onPress} activeOpacity={0.85}>
-        <View style={[cs.rarityBar, { backgroundColor: item.rarityColor }]} />
+        <View style={[cs.rarityBar, { backgroundColor: item.rarityColor || '#8847FF' }]} />
         <View style={cs.imageBox}>
-          <Image
-            source={{ uri: item.image }}
-            style={cs.image}
-            resizeMode="contain"
-          />
+          <Image source={{ uri: item.image }} style={cs.image} resizeMode="contain" />
           {item.stattrak && (
             <View style={cs.stBadge}><Text style={cs.stText}>StatTrak™</Text></View>
           )}
@@ -78,6 +82,9 @@
             <View style={cs.listedOverlay}>
               <Text style={cs.listedOverlayText}>LISTED</Text>
             </View>
+          )}
+          {item.tradeLock && (
+            <View style={cs.lockBadge}><Text style={cs.lockText}>🔒</Text></View>
           )}
         </View>
         <View style={cs.info}>
@@ -90,21 +97,37 @@
                   : item.wear === 'Minimal Wear' ? 'MW'
                   : item.wear === 'Field-Tested' ? 'FT'
                   : item.wear === 'Well-Worn' ? 'WW'
-                  : item.wear === 'Battle-Scarred' ? 'BS' : item.wear}
+                  : item.wear === 'Battle-Scarred' ? 'BS'
+                  : item.wear}
               </Text>
             )}
             {item.float != null && (
               <Text style={cs.float}>{item.float.toFixed(4)}</Text>
             )}
           </View>
-          <Text style={cs.price}>฿{item.price.toLocaleString()}</Text>
+
+          {/* ── ราคา Steam ── */}
+          <View style={cs.priceRow}>
+            {loadingPrice ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <Text style={[cs.price, !hasSteam && cs.priceFallback]}>
+                  ฿{displayPrice.toLocaleString()}
+                </Text>
+                {hasSteam && <View style={cs.liveDot} />}
+              </>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
+
+      {/* ── Sell Button ── */}
       <TouchableOpacity
         style={[
           cs.sellBtn,
           item.tradeLock && cs.sellBtnLocked,
-          item.listed && cs.sellBtnListed,
+          item.listed    && cs.sellBtnListed,
         ]}
         disabled={item.tradeLock}
         onPress={() => !item.tradeLock && onSell(item)}
@@ -115,86 +138,196 @@
       </TouchableOpacity>
     </View>
   );
+};
 
-  export default function InventoryScreen({ navigation }) {
-    const [items, setItems] = useState(MOCK_INVENTORY);
-    const [search, setSearch] = useState('');
-    const [activeFilter, setActiveFilter] = useState(null);
-    const [balance, setBalance] = useState(0);
+// ── MAIN SCREEN ───────────────────────────────────────────────────────────────
+export default function InventoryScreen({ navigation }) {
+  const [items,        setItems]        = useState([]);
+  const [search,       setSearch]       = useState('');
+  const [activeFilter, setActiveFilter] = useState(null);
+  const [balance,      setBalance]      = useState(0);
+  const [loading,      setLoading]      = useState(true);
 
-    useEffect(() => {
+  // เก็บราคา Steam ต่อ item id → ใช้คำนวณ total
+  const [steamPrices, setSteamPrices] = useState({});
+
+  // โหลดใหม่ทุกครั้งที่กลับมาหน้านี้
+  useFocusEffect(
+    React.useCallback(() => {
+      loadInventory();
       loadBalance();
-    }, []);
+    }, [])
+  );
 
-    const loadBalance = async () => {
-      try {
-        const data = await fetchBalance();
-        if (data.success) setBalance(data.balance);
-      } catch {}
+  const loadBalance = async () => {
+    try {
+      const data = await fetchBalance();
+      if (data.success) setBalance(data.balance);
+    } catch {}
+  };
+
+  const loadInventory = async () => {
+    setLoading(true);
+    setSteamPrices({}); // reset ราคาเก่า
+    try {
+      const user = await getStoredUser();
+      if (!user?.steamId) { setLoading(false); return; }
+
+      const data = await fetchInventory(user.steamId);
+      if (data.success) {
+        const mapped = (data.items || []).map(mapSteamItem);
+        setItems(mapped);
+      }
+    } catch (err) {
+      console.log('❌ loadInventory error:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mapSteamItem = (item) => {
+    const name  = item.market_hash_name || item.name || '';
+    const parts = name.split('|');
+    return {
+      id:          item.assetid || item.id || Math.random().toString(),
+      name,
+      weapon:      parts[0]?.trim() || 'Unknown',
+      skin:        parts[1]?.trim().replace(/\(.*\)/, '').trim() || '',
+      wear:        item.wear || extractWear(parts[1] || ''),
+      price:       item.price || 0,
+      rarityColor: item.rarityColor || '#8847FF',
+      image:
+        item.image ||
+        (item.icon_url
+          ? `https://steamcommunity-a.akamaihd.net/economy/image/${item.icon_url}`
+          : null),
+      float:     item.float ?? null,
+      stattrak:  item.stattrak || false,
+      tradeLock: item.tradeLock || false,
+      category:  item.category || 'Guns',
+      listed:    item.listed || false,
     };
+  };
 
-    const filteredItems = useMemo(() => {
-      let result = items.filter(i =>
-        i.name.toLowerCase().includes(search.toLowerCase())
-      );
-      if (activeFilter === 'Trade Lock') result = result.filter(i => i.tradeLock);
-      if (activeFilter === 'Sellable')   result = result.filter(i => !i.tradeLock && !i.listed);
-      if (activeFilter === 'Containers') result = result.filter(i => i.category === 'Cases');
-      return result;
-    }, [search, activeFilter, items]);
+  // แยก wear จาก string "(Field-Tested)" ถ้ามี
+  const extractWear = (str) => {
+    const m = str.match(/\((.*?)\)/);
+    return m ? m[1] : null;
+  };
 
-    const totalValue = items.reduce((s, i) => s + i.price, 0);
+  // callback จาก ItemCard เมื่อโหลดราคา Steam เสร็จ
+  const handlePriceLoaded = (id, price) => {
+    setSteamPrices(prev => ({ ...prev, [id]: price }));
+  };
 
-    return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <View style={s.header}>
-          <Text style={s.headerTitle}>Inventory</Text>
-          <TouchableOpacity onPress={loadBalance} style={s.refreshBtn}>
-            <Text>🔄</Text>
+  const filteredItems = useMemo(() => {
+    let result = items.filter(i =>
+      (i.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (i.weapon || '').toLowerCase().includes(search.toLowerCase()) ||
+      (i.skin || '').toLowerCase().includes(search.toLowerCase())
+    );
+    if (activeFilter === 'Trade Lock') result = result.filter(i => i.tradeLock);
+    if (activeFilter === 'Sellable')   result = result.filter(i => !i.tradeLock && !i.listed);
+    if (activeFilter === 'Containers') result = result.filter(i => i.category === 'Cases');
+    return result;
+  }, [search, activeFilter, items]);
+
+  // Total Value = รวมราคา Steam ของ item ที่โหลดแล้ว + fallback item.price ที่ยังไม่ได้โหลด
+  const totalValue = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const steam = steamPrices[item.id];
+      return sum + (steam ?? item.price ?? 0);
+    }, 0);
+  }, [items, steamPrices]);
+
+  const steamLoadedCount = Object.keys(steamPrices).length;
+
+  return (
+    <SafeAreaView style={s.safe} edges={['top']}>
+      {/* ── Header ── */}
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Inventory</Text>
+        <View style={s.headerRight}>
+          <TouchableOpacity onPress={() => { loadInventory(); loadBalance(); }} style={s.refreshBtn}>
+            <Text style={{ fontSize: 18 }}>🔄</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={s.refreshBtn}>
+            <Text style={{ fontSize: 20 }}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={s.refreshBtn}>
+            <Text style={{ fontSize: 22 }}>👤</Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        <View style={s.valueBanner}>
-          <View>
-            <Text style={s.valueLabel}>TOTAL VALUE</Text>
+      {/* ── Total Value Banner ── */}
+      <View style={s.valueBanner}>
+        <View>
+          <Text style={s.valueLabel}>TOTAL VALUE</Text>
+          <View style={s.valuePriceRow}>
             <Text style={s.valueAmount}>฿{totalValue.toLocaleString()}</Text>
-            <Text style={s.valueCount}>{items.length} items</Text>
+            {/* แสดงว่าโหลดราคาครบหรือยัง */}
+            {steamLoadedCount < items.length && items.length > 0 && (
+              <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
+            )}
+            {steamLoadedCount > 0 && steamLoadedCount >= items.length && (
+              <View style={s.liveTag}>
+                <View style={s.liveDotGreen} />
+                <Text style={s.liveTagText}>Steam</Text>
+              </View>
+            )}
           </View>
-          <View style={s.valueRight}>
-            <TouchableOpacity style={s.sellAllBtn} onPress={() => navigation.navigate('Sell')}>
-              <Text style={s.sellAllText}>💰 วางขาย</Text>
-            </TouchableOpacity>
-            <View style={s.balanceBadge}>
-              <Text style={s.balanceText}>Balance: ฿{balance.toLocaleString()}</Text>
-            </View>
+          <Text style={s.valueCount}>
+            {items.length} items
+            {steamLoadedCount > 0 && (
+              <Text style={{ color: colors.textMuted }}>  •  โหลดราคา {steamLoadedCount}/{items.length}</Text>
+            )}
+          </Text>
+        </View>
+        <View style={s.valueRight}>
+          <TouchableOpacity style={s.sellAllBtn} onPress={() => navigation.navigate('Sell')}>
+            <Text style={s.sellAllText}>💰 วางขาย</Text>
+          </TouchableOpacity>
+          <View style={s.balanceBadge}>
+            <Text style={s.balanceText}>Balance: ฿{balance.toLocaleString()}</Text>
           </View>
         </View>
+      </View>
 
-        <View style={s.searchRow}>
-          <View style={s.searchBox}>
-            <Text>🔍 </Text>
-            <TextInput
-              style={s.searchInput}
-              placeholder="ค้นหา..."
-              placeholderTextColor={colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-          </View>
+      {/* ── Search ── */}
+      <View style={s.searchRow}>
+        <View style={s.searchBox}>
+          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+          <TextInput
+            style={s.searchInput}
+            placeholder="ค้นหา..."
+            placeholderTextColor={colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+          />
         </View>
+      </View>
 
-        <View style={s.filterRow}>
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[s.filterPill, activeFilter === f && s.filterPillActive]}
-              onPress={() => setActiveFilter(activeFilter === f ? null : f)}
-            >
-              <Text style={[s.filterPillText, activeFilter === f && s.filterPillTextActive]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
+      {/* ── Filters ── */}
+      <View style={s.filterRow}>
+        {FILTERS.map(f => (
+          <TouchableOpacity
+            key={f}
+            style={[s.filterPill, activeFilter === f && s.filterPillActive]}
+            onPress={() => setActiveFilter(activeFilter === f ? null : f)}
+          >
+            <Text style={[s.filterPillText, activeFilter === f && s.filterPillTextActive]}>{f}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* ── List ── */}
+      {loading ? (
+        <View style={s.loadingBox}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={s.loadingText}>กำลังโหลด inventory...</Text>
         </View>
-
+      ) : (
         <FlatList
           data={filteredItems}
           keyExtractor={i => i.id}
@@ -205,7 +338,8 @@
             <ItemCard
               item={item}
               onPress={() => navigation.navigate('ItemDetail', { item })}
-              onSell={(item) => navigation.navigate('Sell')}
+              onSell={(item) => navigation.navigate('Sell', { item })}
+              onPriceLoaded={handlePriceLoaded}
             />
           )}
           ListEmptyComponent={
@@ -215,107 +349,134 @@
             </View>
           }
         />
-      </SafeAreaView>
-    );
-  }
+      )}
+    </SafeAreaView>
+  );
+}
 
-  const s = StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 16, paddingVertical: 12,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
-    headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
-    refreshBtn: { padding: 6 },
-    valueBanner: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      backgroundColor: colors.surfaceElevated,
-      paddingHorizontal: 16, paddingVertical: 14,
-      borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
-    valueLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-    valueAmount: { color: colors.primary, fontSize: 22, fontWeight: '900', marginBottom: 2 },
-    valueCount: { color: colors.textSecondary, fontSize: 12 },
-    valueRight: { alignItems: 'flex-end', gap: 8 },
-    sellAllBtn: {
-      backgroundColor: colors.primary, borderRadius: 8,
-      paddingHorizontal: 16, paddingVertical: 8,
-    },
-    sellAllText: { color: '#000', fontSize: 12, fontWeight: '900' },
-    balanceBadge: {
-      backgroundColor: colors.accentGreen + '22', borderRadius: 12,
-      paddingHorizontal: 10, paddingVertical: 3,
-      borderWidth: 1, borderColor: colors.accentGreen,
-    },
-    balanceText: { color: colors.accentGreen, fontSize: 10, fontWeight: '600' },
-    searchRow: {
-      paddingHorizontal: 16, paddingVertical: 10,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
-    searchBox: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: colors.surfaceElevated, borderRadius: 10,
-      paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border,
-    },
-    searchInput: { flex: 1, color: colors.textPrimary, height: 40, fontSize: 14 },
-    filterRow: {
-      flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8,
-      backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
-    },
-    filterPill: {
-      paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
-      borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardBg,
-    },
-    filterPillActive: { backgroundColor: colors.primary + '22', borderColor: colors.primary },
-    filterPillText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
-    filterPillTextActive: { color: colors.primary, fontWeight: '700' },
-    grid: { padding: 8, paddingBottom: 30 },
-    empty: { alignItems: 'center', paddingTop: 80 },
-    emptyIcon: { fontSize: 44, marginBottom: 12, opacity: 0.4 },
-    emptyText: { color: colors.textMuted, fontSize: 14 },
-  });
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  refreshBtn: { padding: 4 },
 
-  const cs = StyleSheet.create({
-    wrapper: { flex: 1, margin: 4 },
-    card: {
-      backgroundColor: colors.cardBg, borderRadius: 10,
-      overflow: 'hidden', borderWidth: 1, borderColor: colors.border,
-    },
-    rarityBar: { height: 3 },
-    imageBox: {
-      height: 100, backgroundColor: colors.surfaceElevated,
-      alignItems: 'center', justifyContent: 'center', position: 'relative',
-    },
-    image: { width: '100%', height: '100%' },
-    stBadge: {
-      position: 'absolute', top: 4, left: 4,
-      backgroundColor: '#CF6A32', borderRadius: 3,
-      paddingHorizontal: 4, paddingVertical: 1,
-    },
-    stText: { color: '#fff', fontSize: 7, fontWeight: '800' },
-    listedOverlay: {
-      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(76,175,80,0.3)',
-      alignItems: 'center', justifyContent: 'center',
-    },
-    listedOverlayText: { color: '#fff', fontSize: 14, fontWeight: '900' },
-    info: { padding: 8 },
-    weapon: { color: colors.textMuted, fontSize: 9, fontWeight: '600', marginBottom: 1 },
-    skin: { color: colors.textPrimary, fontSize: 12, fontWeight: '700', marginBottom: 3 },
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-    wear: {
-      color: colors.textMuted, fontSize: 9, fontWeight: '600',
-      backgroundColor: colors.surfaceElevated,
-      paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3,
-    },
-    float: { color: colors.textMuted, fontSize: 9 },
-    price: { color: colors.primary, fontSize: 13, fontWeight: '800' },
-    sellBtn: {
-      backgroundColor: colors.accentGreen, paddingVertical: 8, alignItems: 'center',
-      borderBottomLeftRadius: 10, borderBottomRightRadius: 10,
-    },
-    sellBtnLocked: { backgroundColor: colors.surfaceElevated },
-    sellBtnListed: { backgroundColor: colors.accentGreen + '44' },
-    sellBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  });
+  valueBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  valueLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
+  valuePriceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  valueAmount: { color: colors.primary, fontSize: 22, fontWeight: '900' },
+  liveTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#22c55e20', borderRadius: 8,
+    paddingHorizontal: 7, paddingVertical: 2, marginLeft: 8,
+    borderWidth: 1, borderColor: '#22c55e44',
+  },
+  liveDotGreen: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#22c55e' },
+  liveTagText: { color: '#22c55e', fontSize: 9, fontWeight: '700' },
+  valueCount: { color: colors.textSecondary, fontSize: 12 },
+  valueRight: { alignItems: 'flex-end', gap: 8 },
+  sellAllBtn: {
+    backgroundColor: colors.primary, borderRadius: 8,
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  sellAllText: { color: '#000', fontSize: 12, fontWeight: '900' },
+  balanceBadge: {
+    backgroundColor: colors.accentGreen + '22', borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderWidth: 1, borderColor: colors.accentGreen,
+  },
+  balanceText: { color: colors.accentGreen, fontSize: 10, fontWeight: '600' },
+
+  searchRow: {
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surfaceElevated, borderRadius: 10,
+    paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border,
+  },
+  searchInput: { flex: 1, color: colors.textPrimary, height: 40, fontSize: 14 },
+
+  filterRow: {
+    flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8,
+    backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  filterPill: {
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardBg,
+  },
+  filterPillActive: { backgroundColor: colors.primary + '22', borderColor: colors.primary },
+  filterPillText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  filterPillTextActive: { color: colors.primary, fontWeight: '700' },
+
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  loadingText: { color: colors.textSecondary, fontSize: 14 },
+  grid: { padding: 8, paddingBottom: 30 },
+  empty: { alignItems: 'center', paddingTop: 80 },
+  emptyIcon: { fontSize: 44, marginBottom: 12, opacity: 0.4 },
+  emptyText: { color: colors.textMuted, fontSize: 14 },
+});
+
+const cs = StyleSheet.create({
+  wrapper: { flex: 1, margin: 4 },
+  card: {
+    backgroundColor: colors.cardBg, borderRadius: 10,
+    overflow: 'hidden', borderWidth: 1, borderColor: colors.border,
+  },
+  rarityBar: { height: 3 },
+  imageBox: {
+    height: 100, backgroundColor: colors.surfaceElevated,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
+  },
+  image: { width: '100%', height: '100%' },
+  stBadge: {
+    position: 'absolute', top: 4, left: 4,
+    backgroundColor: '#CF6A32', borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 1,
+  },
+  stText: { color: '#fff', fontSize: 7, fontWeight: '800' },
+  lockBadge: {
+    position: 'absolute', top: 4, right: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4,
+    paddingHorizontal: 4, paddingVertical: 2,
+  },
+  lockText: { fontSize: 10 },
+  listedOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(76,175,80,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  listedOverlayText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  info: { padding: 8 },
+  weapon: { color: colors.textMuted, fontSize: 9, fontWeight: '600', marginBottom: 1 },
+  skin: { color: colors.textPrimary, fontSize: 12, fontWeight: '700', marginBottom: 3 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  wear: {
+    color: colors.textMuted, fontSize: 9, fontWeight: '600',
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3,
+  },
+  float: { color: colors.textMuted, fontSize: 9 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 20 },
+  price: { color: colors.primary, fontSize: 13, fontWeight: '800' },
+  priceFallback: { color: colors.textMuted },
+  liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#22c55e' },
+  sellBtn: {
+    backgroundColor: colors.accentGreen, paddingVertical: 8, alignItems: 'center',
+    borderBottomLeftRadius: 10, borderBottomRightRadius: 10,
+  },
+  sellBtnLocked: { backgroundColor: colors.surfaceElevated },
+  sellBtnListed:  { backgroundColor: colors.accentGreen + '44' },
+  sellBtnText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+});

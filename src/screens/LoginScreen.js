@@ -104,29 +104,34 @@ export default function LoginScreen({ navigation }) {
   // ── Steam Login ─────────────────────────────────────
   const handleSteamLogin = async () => {
     console.log("🔥 handleSteamLogin called");
-    isHandlingAuth.current = false; // ✅ รีเซ็ตก่อนเปิด browser ทุกครั้งครับผม
+    isHandlingAuth.current = false;
     setLoading(true);
+
     try {
-      const redirectUri = "myapp://auth/callback";
+      const redirectUri = AuthSession.makeRedirectUri({
+        useProxy: true,
+      });
+
       console.log("📌 redirectUri:", redirectUri);
-      console.log("🌐 Opening browser...");
+
+      const url = `${BACKEND_URL}/auth/steam?redirect=${encodeURIComponent(redirectUri)}`;
+
+      console.log("🌐 URL:", url);
 
       const result = await WebBrowser.openAuthSessionAsync(
-        `${BACKEND_URL}/auth/steam?redirect=${encodeURIComponent(redirectUri)}`,
-        redirectUri,
+        url,
+        redirectUri
       );
 
-      console.log("✅ result type:", result.type);
-      console.log("✅ result url:", result.url?.split("?")[0] ?? "none");
+      console.log("RESULT:", result);
 
       if (result.type === "success" && result.url) {
         await handleDeepLink({ url: result.url });
       } else {
-        console.warn("⚠️ Browser closed, type:", result.type);
         setLoading(false);
       }
     } catch (err) {
-      console.error("Steam login error:", err);
+      console.error("❌ ERROR:", err);
       setLoading(false);
     }
   };

@@ -2,7 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ====== CONFIG ======
-const BASE_URL = "https://defuse-th-backend-main.onrender.com";
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
 // ====== AUTH ======
 

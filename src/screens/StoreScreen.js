@@ -1,4 +1,4 @@
-  import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
   import {
     View,
     Text,
@@ -14,8 +14,61 @@
   } from "react-native";
   import { SafeAreaView } from "react-native-safe-area-context";
   import { colors } from "../theme/colors";
-  import FilterModal from "../components/FilterModal";
-  import { fetchItems, fetchListings, buyItem, fetchBalance } from "../data/api";
+  import FilterModal, { DEFAULT_FILTERS } from "../components/FilterModal";
+  import { fetchItems, fetchListings, buyItem } from "../data/api";
+  import { useBalance } from "../context/BalanceContext";
+
+  // ─── Float & Wear helpers ────────────────────────────────────
+  const WEAR_TIERS = [
+    { label: "Factory New",    min: 0.00, max: 0.07, color: "#4ade80" },
+    { label: "Minimal Wear",   min: 0.07, max: 0.15, color: "#a3e635" },
+    { label: "Field-Tested",   min: 0.15, max: 0.38, color: "#facc15" },
+    { label: "Well-Worn",      min: 0.38, max: 0.45, color: "#fb923c" },
+    { label: "Battle-Scarred", min: 0.45, max: 1.00, color: "#f87171" },
+  ];
+
+  // แปลง wear string → color (สำหรับ item ที่มี wear แต่ไม่มี float)
+  const getWearColor = (wearLabel) => {
+    const tier = WEAR_TIERS.find((t) => t.label === wearLabel);
+    return tier ? tier.color : "#888";
+  };
+
+  const getWearFromFloat = (f) =>
+    WEAR_TIERS.find((t) => f >= t.min && f < t.max) || WEAR_TIERS[4];
+
+  // generate float random เฉพาะกรณีไม่มีทั้ง float และ wear
+  const generateFloat = () => {
+    const r = Math.random();
+    if (r < 0.10) return parseFloat((Math.random() * 0.07).toFixed(4));
+    if (r < 0.30) return parseFloat((0.07 + Math.random() * 0.08).toFixed(4));
+    if (r < 0.65) return parseFloat((0.15 + Math.random() * 0.23).toFixed(4));
+    if (r < 0.80) return parseFloat((0.38 + Math.random() * 0.07).toFixed(4));
+    return parseFloat((0.45 + Math.random() * 0.55).toFixed(4));
+  };
+
+  const enrichItem = (item) => {
+    // item จาก items.js / API มี float และ wear อยู่แล้ว
+    const hasFloat = item.float != null;
+    const hasWear  = item.wear  != null && item.wear !== "";
+
+    if (hasFloat) {
+      // มี float → คำนวณ wear จาก float (แม่นยำกว่า string จาก API)
+      const tier = getWearFromFloat(item.float);
+      return { ...item, wear: tier.label, wearColor: tier.color };
+    }
+
+    if (hasWear) {
+      // มี wear string แต่ไม่มี float (เช่น Cases) → แปลง wear → color เท่านั้น
+      return { ...item, float: null, wearColor: getWearColor(item.wear) };
+    }
+
+    // ไม่มีทั้งคู่ → generate float ใหม่
+    const floatVal = generateFloat();
+    const tier     = getWearFromFloat(floatVal);
+    return { ...item, float: floatVal, wear: tier.label, wearColor: tier.color };
+  };
+  // ────────────────────────────────────────────────────────────
+
 
   const CATEGORIES = [
     { id: "", label: "All", icon: "🔫" },
@@ -54,6 +107,18 @@
             {item.rarity}
           </Text>
         </View>
+        {/* Wear + Float */}
+        {item.wear && (
+          <View style={cs.wearRow}>
+            <View style={[cs.wearDot, { backgroundColor: item.wearColor || "#888" }]} />
+            <Text style={[cs.wearText, { color: item.wearColor || "#888" }]}>
+              {item.wear}
+            </Text>
+          </View>
+        )}
+        {item.float !== undefined && (
+          <Text style={cs.floatText}>Float: {Number(item.float).toFixed(4)}</Text>
+        )}
         <Text style={cs.price}>
           {item.listingPrice
             ? `฿${item.listingPrice.toLocaleString()}`
@@ -77,12 +142,57 @@
     const [total, setTotal] = useState(0);
     const [balance, setBalance] = useState(0);
     const [activeTab, setActiveTab] = useState("database");
-    const loadBalance = async () => {
-      try {
-        const data = await fetchBalance();
-        if (data.success) setBalance(data.balance);
-      } catch {}
-    };
+    const { balance: ctxBalance, loadBalance } = useBalance();
+
+    // ─── Filter state ────────────────────────────────────────────
+    const [filters, setFilters] = useState(DEFAULT_FILTERS);
+
+    // นับจำนวน filter ที่ active สำหรับแสดง badge
+    const activeFilterCount =
+      filters.rarities.length +
+      filters.wears.length +
+      (filters.weaponType ? 1 : 0) +
+      (filters.priceMin   ? 1 : 0) +
+      (filters.priceMax   ? 1 : 0) +
+      (filters.sort       ? 1 : 0);
+
+    // apply filter + sort กับ items ที่โหลดมาแล้ว (client-side)
+    const filteredItems = useMemo(() => {
+      let result = [...items];
+
+      if (filters.rarities.length > 0)
+        result = result.filter((i) => filters.rarities.includes(i.rarity));
+
+      if (filters.wears.length > 0)
+        result = result.filter((i) => filters.wears.includes(i.wear));
+
+      if (filters.weaponType)
+        result = result.filter((i) =>
+          (i.category || i.type || "").toLowerCase().includes(filters.weaponType.toLowerCase()) ||
+          filters.weaponType.toLowerCase().includes((i.category || i.type || "").toLowerCase())
+        );
+
+      const minP = parseFloat(filters.priceMin);
+      const maxP = parseFloat(filters.priceMax);
+      if (!isNaN(minP)) result = result.filter((i) => (i.listingPrice || i.basePrice || i.price || 0) >= minP);
+      if (!isNaN(maxP)) result = result.filter((i) => (i.listingPrice || i.basePrice || i.price || 0) <= maxP);
+
+      if (filters.sort === "price_asc")
+        result.sort((a, b) => (a.listingPrice || a.basePrice || 0) - (b.listingPrice || b.basePrice || 0));
+      else if (filters.sort === "price_desc")
+        result.sort((a, b) => (b.listingPrice || b.basePrice || 0) - (a.listingPrice || a.basePrice || 0));
+      else if (filters.sort === "float_asc")
+        result.sort((a, b) => (a.float ?? 1) - (b.float ?? 1));
+      else if (filters.sort === "float_desc")
+        result.sort((a, b) => (b.float ?? 0) - (a.float ?? 0));
+
+      return result;
+    }, [items, filters]);
+    // ────────────────────────────────────────────────────────────
+
+    useEffect(() => {
+      setBalance(ctxBalance);
+    }, [ctxBalance]);
 
     useEffect(() => {
       loadBalance();
@@ -127,8 +237,8 @@
               "| total:",
               data.total,
             ); // ← เพิ่ม
-            if (isRefresh || page === 1) setItems(data.items);
-            else setItems((prev) => [...prev, ...data.items]);
+            if (isRefresh || page === 1) setItems(data.items.map(enrichItem));
+            else setItems((prev) => [...prev, ...data.items.map(enrichItem)]);
             setTotal(data.total);
             setTotalPages(data.totalPages);
           }
@@ -140,7 +250,7 @@
               data.listings.length,
             ); // ← เพิ่ม
             setItems(
-              data.listings.map((l) => ({
+              data.listings.map((l) => enrichItem({
                 ...l.item,
                 listingId: l.listingId,
                 listingPrice: l.price,
@@ -183,6 +293,18 @@
             <View style={s.balanceBadge}>
               <Text style={s.balanceText}>฿{balance.toLocaleString()}</Text>
             </View>
+            {/* Filter button */}
+            <TouchableOpacity
+              style={[s.filterBtn, activeFilterCount > 0 && s.filterBtnActive]}
+              onPress={() => setFilterVisible(true)}
+            >
+              <Text style={s.filterIcon}>⚙️</Text>
+              {activeFilterCount > 0 && (
+                <View style={s.filterBadge}>
+                  <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => loadData(true)}>
               <Text style={{ fontSize: 18 }}>🔄</Text>
             </TouchableOpacity>
@@ -278,10 +400,18 @@
 
         {/* Result row */}
         <View style={s.resultRow}>
-          <Text style={s.resultText}>{total.toLocaleString()} items</Text>
-          <Text style={s.pageText}>
-            หน้า {page}/{totalPages}
+          <Text style={s.resultText}>
+            {activeFilterCount > 0
+              ? `${filteredItems.length} / ${items.length} items (filtered)`
+              : `${total.toLocaleString()} items`}
           </Text>
+          {activeFilterCount > 0 ? (
+            <TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}>
+              <Text style={s.clearFilterText}>ล้าง filter ✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={s.pageText}>หน้า {page}/{totalPages}</Text>
+          )}
         </View>
 
         {/* Items Grid */}
@@ -292,7 +422,7 @@
           </View>
         ) : (
           <FlatList
-            data={items}
+            data={filteredItems}
             keyExtractor={(i, idx) => i.id || String(idx)}
             numColumns={2}
             contentContainerStyle={s.grid}
@@ -335,7 +465,8 @@
         <FilterModal
           visible={filterVisible}
           onClose={() => setFilterVisible(false)}
-          onApply={() => {}}
+          filters={filters}
+          onApply={(newFilters) => setFilters(newFilters)}
         />
       </SafeAreaView>
     );
@@ -355,6 +486,29 @@
     },
     headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
     headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+    filterBtn: {
+      padding: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: "#333",
+      position: "relative",
+    },
+    filterBtnActive: { borderColor: colors.primary, backgroundColor: colors.primary + "22" },
+    filterIcon: { fontSize: 16 },
+    filterBadge: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      minWidth: 16,
+      height: 16,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 3,
+    },
+    filterBadgeText: { color: "#000", fontSize: 9, fontWeight: "900" },
+    clearFilterText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
     balanceBadge: {
       backgroundColor: colors.primary + "22",
       borderRadius: 20,
@@ -506,6 +660,10 @@
       marginBottom: 4,
     },
     rarityText: { fontSize: 8, fontWeight: "700" },
+    wearRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
+    wearDot: { width: 6, height: 6, borderRadius: 3 },
+    wearText: { fontSize: 8, fontWeight: "700" },
+    floatText: { color: "#666", fontSize: 8, marginBottom: 2 },
     price: { color: colors.primary, fontSize: 12, fontWeight: "800" },
     seller: { color: colors.textMuted, fontSize: 9, marginTop: 2 },
   });

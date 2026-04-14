@@ -14,10 +14,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
 import {
   logout,
-  fetchBalance,
-  depositBalance,
   getStoredUser,
 } from "../data/api";
+import { useBalance } from "../context/BalanceContext";
 
 // Component สำหรับเมนูแต่ละแถว
 const MenuItem = ({ icon, label, sublabel, onPress, danger = false, accent = false }) => (
@@ -38,7 +37,7 @@ const MenuItem = ({ icon, label, sublabel, onPress, danger = false, accent = fal
 );
 
 export default function ProfileScreen({ navigation }) {
-  const [balance, setBalance] = useState(0);
+  const { balance, loadBalance, deposit, withdraw } = useBalance();
   const [user, setUser] = useState(null);
 
   // State สำหรับ Modal เติมเงิน
@@ -59,32 +58,16 @@ export default function ProfileScreen({ navigation }) {
     if (stored) setUser(stored);
   };
 
-  const loadBalance = async () => {
-    try {
-      const data = await fetchBalance();
-      if (data.success) setBalance(data.balance);
-    } catch { }
-  };
-
   // --- Logic เติมเงิน ---
   const handleDeposit = async () => {
     const amount = parseInt(depositAmount);
     if (!amount || amount <= 0) return Alert.alert("Error", "กรุณากรอกจำนวนเงิน");
     if (amount < 20) return Alert.alert("ขั้นต่ำ", "เติมเงินขั้นต่ำ ฿20");
 
-    try {
-      const data = await depositBalance(amount);
-      if (data.success) {
-        setBalance(data.newBalance);
-        setDepositVisible(false);
-        setDepositAmount("");
-        Alert.alert("✅ สำเร็จ", `เติมเงิน ฿${amount.toLocaleString()} เรียบร้อย`);
-      }
-    } catch (err) {
-      setBalance(prev => prev + amount); // Mockup
-      setDepositVisible(false);
-      setDepositAmount("");
-    }
+    await deposit(amount);
+    setDepositVisible(false);
+    setDepositAmount("");
+    Alert.alert("✅ สำเร็จ", `เติมเงิน ฿${amount.toLocaleString()} เรียบร้อย`);
   };
 
   // --- Logic ถอนเงิน ---
@@ -94,13 +77,12 @@ export default function ProfileScreen({ navigation }) {
     if (amount > balance) return Alert.alert("ยอดเงินไม่พอ", "คุณมียอดเงินไม่เพียงพอ");
 
     setWithdrawVisible(false);
-    // ส่งต่อไปยังการเลือกธนาคาร หรือจัดการต่อตามต้องการ
     Alert.alert("ยืนยันการถอน", `ต้องการถอนเงิน ฿${amount.toLocaleString()} ใช่หรือไม่?`, [
       { text: "ยกเลิก", style: "cancel" },
       { 
         text: "ยืนยัน", 
         onPress: () => {
-          setBalance(prev => prev - amount);
+          withdraw(amount);
           setWithdrawAmount("");
           Alert.alert("✅ สำเร็จ", "ส่งคำขอถอนเงินเรียบร้อย");
         }
@@ -147,15 +129,15 @@ export default function ProfileScreen({ navigation }) {
         {/* Balance Card */}
         <View style={s.balanceCard}>
           <View>
-            <Text style={s.balanceLabel}>💰 BALANCE</Text>
+            <Text style={s.balanceLabel}>💰 BALANCE จำนวนเงิน (Baht)</Text>
             <Text style={s.balanceAmount}>฿ {balance.toLocaleString()}</Text>
           </View>
           <View style={s.balanceActions}>
             <TouchableOpacity style={s.depositBtn} onPress={() => setDepositVisible(true)}>
-              <Text style={s.depositText}>+ DEPOSIT</Text>
+              <Text style={s.depositText}>+ เติมเงิน</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.withdrawBtn} onPress={() => setWithdrawVisible(true)}>
-              <Text style={s.withdrawText}>WITHDRAW</Text>
+              <Text style={s.withdrawText}>- ถอนเงิน</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -164,7 +146,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={s.section}>
           <Text style={s.sectionTitle}>ACCOUNT & ACTIVITY</Text>
           <View style={s.menuCard}>
-            <MenuItem icon="🛒" label="Buy History" sublabel="ประวัติการซื้อ" onPress={() => {}} />
+            <MenuItem icon="🛒" label="Buy History" sublabel="ประวัติการซื้อ" onPress={() => navigation.navigate("BuyHistory")} />
             <View style={s.divider} />
             <MenuItem icon="💸" label="Sale History" sublabel="จัดการของที่วางขาย" accent onPress={() => navigation.navigate("Sell")} />
             <View style={s.divider} />
@@ -210,7 +192,7 @@ export default function ProfileScreen({ navigation }) {
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
             <Text style={s.modalTitle}>Withdraw / ถอนเงิน</Text>
-            <Text style={s.modalSub}>ยอดเงินคงเหลือ: ฿{balance.toLocaleString()}</Text>
+        <Text style={s.modalSub}>ยอดเงินคงเหลือ: ฿{balance.toLocaleString()}</Text>
             <TextInput
               style={s.modalInput}
               placeholder="กรอกจำนวนที่จะถอน (฿)"
