@@ -1,65 +1,46 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { fetchBalance } from '../data/api'; // ✅ นำเข้า API ดึงยอดเงินจาก Database
 
-const BalanceContext = createContext(null);
+const BalanceContext = createContext();
 
-export function BalanceProvider({ children }) {
+export const BalanceProvider = ({ children }) => {
   const [balance, setBalance] = useState(0);
 
-  // 🔥 โหลด balance จากเครื่อง
-  const loadBalance = useCallback(async () => {
+  // 🟢 ฟังก์ชันไปดึงยอดเงินจาก Backend (MongoDB)
+  const loadBalance = async () => {
     try {
-      const saved = await AsyncStorage.getItem("balance");
-      if (saved !== null) {
-        setBalance(parseInt(saved));
+      const data = await fetchBalance();
+      
+      // ถ้า Backend ส่งข้อมูล balance กลับมา ให้เอามาอัปเดต State
+      if (data && data.balance !== undefined) {
+        setBalance(data.balance); 
       }
-    } catch (e) {
-      console.log("❌ loadBalance error:", e);
+    } catch (error) {
+      console.log("Error loading balance:", error);
     }
-  }, []);
+  };
 
-  // 🔥 โหลดตอนเปิดแอป
+  // (ถอนเงิน ตอนนี้เอาเป็นตัวจำลองไว้ก่อน ถ้าทำ API ถอนเงินเสร็จค่อยมาแก้ให้ยิง API แบบ loadBalance ครับ)
+  const withdraw = async (amount) => {
+    // อนาคตใส่ API ถอนเงินตรงนี้ เช่น: await withdrawBalanceAPI(amount);
+    // จากนั้นสั่งโหลดเงินใหม่: await loadBalance();
+    
+    // แบบชั่วคราว (Local) เพื่อไม่ให้หน้า Profile พังเวลาเผลอกด
+    if (balance >= amount) {
+        setBalance(prev => prev - amount);
+    }
+  };
+
+  // ให้มันโหลดข้อมูลเงินทันทีที่เปิดแอปหรือล็อกอินเข้ามา
   useEffect(() => {
     loadBalance();
-  }, [loadBalance]);
-
-  // 🔥 deposit (เพิ่มเงิน + save)
-  const deposit = useCallback(async (amount) => {
-    try {
-      const newBalance = balance + amount;
-      setBalance(newBalance);
-      await AsyncStorage.setItem("balance", String(newBalance));
-      return { success: true };
-    } catch (e) {
-      console.log("❌ deposit error:", e);
-      return { success: false };
-    }
-  }, [balance]);
-
-  // 🔥 withdraw (หักเงิน + save)
-  const withdraw = useCallback(async (amount) => {
-    try {
-      if (amount > balance) return;
-
-      const newBalance = balance - amount;
-      setBalance(newBalance);
-      await AsyncStorage.setItem("balance", String(newBalance));
-    } catch (e) {
-      console.log("❌ withdraw error:", e);
-    }
-  }, [balance]);
+  }, []);
 
   return (
-    <BalanceContext.Provider
-      value={{ balance, setBalance, loadBalance, deposit, withdraw }}
-    >
+    <BalanceContext.Provider value={{ balance, loadBalance, withdraw }}>
       {children}
     </BalanceContext.Provider>
   );
-}
+};
 
-export function useBalance() {
-  const ctx = useContext(BalanceContext);
-  if (!ctx) throw new Error("useBalance must be used within BalanceProvider");
-  return ctx;
-}
+export const useBalance = () => useContext(BalanceContext);

@@ -1,81 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   TextInput, Alert, Image, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { listItem, removeListing } from '../data/api';
+import { listItem, removeListing, fetchInventory, getStoredUser } from '../data/api'; // ✅ นำเข้าฟังก์ชันดึงของจริง
 
 const WEAR_SHORT = {
   'Factory New': 'FN', 'Minimal Wear': 'MW',
   'Field-Tested': 'FT', 'Well-Worn': 'WW', 'Battle-Scarred': 'BS',
 };
 
-// Mock Inventory — ใช้รูปจาก Steam จริง
-const MOCK_INVENTORY = [
-  {
-    id: 'inv-1', assetId: 'inv-1',
-    name: 'AK-47 | Redline', weapon: 'AK-47', skin: 'Redline',
-    rarity: 'Classified', rarityColor: '#D32CE6', wear: 'Field-Tested',
-    price: 18450, float: 0.2341, category: 'Guns',
-    tradeLock: false, stattrak: false, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlPPNSI_-RHGavzedxuPUnFniykEtzsWWBzoyuIiifaAchDZUjTOZe4RC_w4buM-6z7wzbgokUyzK-0H08hRGDMA',
-  },
-  {
-    id: 'inv-2', assetId: 'inv-2',
-    name: 'Karambit | Fade', weapon: 'Karambit', skin: 'Fade',
-    rarity: 'Covert', rarityColor: '#EB4B4B', wear: 'Factory New',
-    price: 245000, float: 0.0034, category: 'Knife',
-    tradeLock: true, stattrak: true, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q7uCvZaZkNM-SD1iWwOpzj-1gSCGn20tztm_UyIn_JHKUbgYlWMcmQ-ZcskSwldS0MOnntAfd3YlMzH35jntXrnE8SOGRGG8',
-  },
-  {
-    id: 'inv-3', assetId: 'inv-3',
-    name: 'Glock-18 | Fade', weapon: 'Glock-18', skin: 'Fade',
-    rarity: 'Restricted', rarityColor: '#8847FF', wear: 'Factory New',
-    price: 9800, float: 0.0112, category: 'Guns',
-    tradeLock: false, stattrak: false, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1a7s2oaaBoH_yaCW-Ej-8u5bZvHnq1w0Vz62TUzNj4eCiVblMmXMAkROJeskLpkdXjMrzksVTAy9US8PY25So',
-  },
-  {
-    id: 'inv-4', assetId: 'inv-4',
-    name: 'CS2 Revolution Case', weapon: 'Case', skin: 'Revolution',
-    rarity: 'Base Grade', rarityColor: '#B0C3D9', wear: null,
-    price: 350, float: null, category: 'Cases',
-    tradeLock: false, stattrak: false, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGJKz2lu_XsnXwtmkJjSU91dh8bj35VTqVBP4io_frHcVuPaoafU1JqiVWWSVkux15OQ8Giiylk0k5mvTnIqpd3PCaQIhWMYkE_lK7EcNeCKW-w',
-  },
-  {
-    id: 'inv-5', assetId: 'inv-5',
-    name: 'USP-S | Kill Confirmed', weapon: 'USP-S', skin: 'Kill Confirmed',
-    rarity: 'Covert', rarityColor: '#EB4B4B', wear: 'Minimal Wear',
-    price: 32500, float: 0.1234, category: 'Guns',
-    tradeLock: false, stattrak: true, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSI-WsG3SA_uV_vO1WTCa9kxQ1vjiBpYPwJiPTcFB2Xpp5TO5cskG9lYCxZu_jsVCL3o4Xnij23ClO5ik9tegFA_It8qHJz1aWe-uc160',
-  },
-  {
-    id: 'inv-6', assetId: 'inv-6',
-    name: 'Desert Eagle | Blaze', weapon: 'Desert Eagle', skin: 'Blaze',
-    rarity: 'Restricted', rarityColor: '#8847FF', wear: 'Factory New',
-    price: 24500, float: 0.0078, category: 'Guns',
-    tradeLock: false, stattrak: false, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL1m5fn8Sdk7vORbqhsLfWAMWuZxuZi_uI_TX6wxxkjsGXXnImsJ37COlUoWcByEOMOtxa5kdXmNu3htVPZjN1bjXKpkHLRfQU',
-  },
-  {
-    id: 'inv-7', assetId: 'inv-7',
-    name: 'Specialist Gloves | Crimson Kimono', weapon: 'Specialist Gloves', skin: 'Crimson Kimono',
-    rarity: 'Extraordinary', rarityColor: '#E4AE33', wear: 'Well-Worn',
-    price: 87000, float: 0.4123, category: 'Glove',
-    tradeLock: false, stattrak: false, listed: false, listingId: null,
-    image: 'https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk71ruQBH4jYLf-i5U-fe9V7d9JfOaD2uZ0vpJu-hkQCe8qhkusjCKlIvqHjnCOml8U8UoAfkItBLswdbuNbjr5FHdjNkUzSv73C1K5y46tu4EUvAg-6bU3FrBMOE4_9BdcyhkRns5',
-  },
-];
-
 const SellItemCard = ({ item, onList, onRemove }) => {
-  const [price, setPrice] = useState(item.myPrice ? String(item.myPrice) : '');
+  const [price, setPrice] = useState('');
   const [loading, setLoading] = useState(false);
   const receiveAmount = price ? Math.round(Number(price) * 0.95) : 0;
+
+  // ใช้ราคาที่ Backend ดึงมาล่าสุด
+  const marketPrice = item.marketPriceTHB || item.price || 0;
 
   const handleList = async () => {
     if (!price || isNaN(Number(price)) || Number(price) <= 0) {
@@ -97,7 +40,7 @@ const SellItemCard = ({ item, onList, onRemove }) => {
 
   return (
     <View style={ss.card}>
-      <View style={[ss.rarityBar, { backgroundColor: item.rarityColor }]} />
+      <View style={[ss.rarityBar, { backgroundColor: item.rarityColor || '#8847FF' }]} />
       <View style={ss.cardBody}>
         <View style={ss.imageBox}>
           <Image source={{ uri: item.image }} style={ss.image} resizeMode="contain" />
@@ -110,12 +53,12 @@ const SellItemCard = ({ item, onList, onRemove }) => {
           <Text style={ss.skin} numberOfLines={1}>{item.skin}</Text>
           {item.wear && (
             <View style={ss.wearRow}>
-              <View style={[ss.wearDot, { backgroundColor: item.rarityColor }]} />
+              <View style={[ss.wearDot, { backgroundColor: item.rarityColor || '#8847FF' }]} />
               <Text style={ss.wearText}>{WEAR_SHORT[item.wear] || item.wear}</Text>
               {item.float != null && <Text style={ss.floatText}>  {item.float.toFixed(4)}</Text>}
             </View>
           )}
-          <Text style={ss.marketPrice}>ราคาตลาด: ฿{item.price.toLocaleString()}</Text>
+          <Text style={ss.marketPrice}>ราคาตลาด: ฿{marketPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</Text>
         </View>
 
         <View style={ss.actionBox}>
@@ -149,7 +92,8 @@ const SellItemCard = ({ item, onList, onRemove }) => {
         <View style={ss.priceSection}>
           <View style={ss.priceInputRow}>
             <Text style={ss.priceInputLabel}>ราคาขาย (฿)</Text>
-            <TouchableOpacity onPress={() => setPrice(String(item.price))}>
+            {/* ✅ พอกด 'ใช้ราคาตลาด' จะเอา marketPrice มาเติมให้อัตโนมัติ */}
+            <TouchableOpacity onPress={() => setPrice(String(Math.floor(marketPrice)))}>
               <Text style={ss.suggestBtn}>ใช้ราคาตลาด</Text>
             </TouchableOpacity>
           </View>
@@ -179,9 +123,52 @@ const SellItemCard = ({ item, onList, onRemove }) => {
   );
 };
 
-export default function SellScreen({ navigation }) {
-  const [items, setItems] = useState(MOCK_INVENTORY);
+export default function SellScreen({ route, navigation }) {
+  // ✅ รับไอเทมที่กดมาจากหน้า Inventory (ถ้ามี)
+  const targetItem = route.params?.item;
+
+  const [items, setItems] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
+  const [loadingItems, setLoadingItems] = useState(true);
+
+  // ✅ โหลดคลังแสงของจริง
+  useEffect(() => {
+    loadRealInventory();
+  }, []);
+
+  const loadRealInventory = async () => {
+    setLoadingItems(true);
+    try {
+      const user = await getStoredUser();
+      if (!user?.steamId) return;
+
+      const data = await fetchInventory(user.steamId);
+      if (data.success && data.items) {
+        // จัดระเบียบข้อมูลให้เข้ากับ UI ของคุณ
+        let mappedItems = data.items.map(item => ({
+          ...item,
+          id: item.assetId || item.id || Math.random().toString(),
+          image: item.image || (item.icon_url ? `https://steamcommunity-a.akamaihd.net/economy/image/${item.icon_url}` : null),
+        }));
+
+        // ✅ จุดสำคัญ: ถ้าส่ง targetItem มา ให้ดันมันขึ้นไปอยู่บนสุดของลิสต์!
+        if (targetItem) {
+          const targetId = targetItem.assetId || targetItem.id;
+          mappedItems.sort((a, b) => {
+            if (a.assetId === targetId || a.id === targetId) return -1;
+            if (b.assetId === targetId || b.id === targetId) return 1;
+            return 0;
+          });
+        }
+
+        setItems(mappedItems);
+      }
+    } catch (err) {
+      console.log('Load Inventory Error:', err);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
 
   const handleList = async (item, price, setLoading) => {
     setLoading(true);
@@ -195,10 +182,10 @@ export default function SellScreen({ navigation }) {
         ));
         Alert.alert(
           '✅ วางขายสำเร็จ!',
-          `${item.name}\nราคา: ฿${price.toLocaleString()}\n\nของคุณปรากฏใน Store แล้วครับ คนอื่นสามารถซื้อได้`
+          `${item.name}\nราคา: ฿${price.toLocaleString()}\n\nของปรากฏในหน้าร้านค้าแล้วครับ คนอื่นสามารถซื้อได้`
         );
       } else {
-        Alert.alert('❌ Error', data.error || 'เกิดข้อผิดพลาด กรุณา Login ก่อน');
+        Alert.alert('❌ Error', data.error || 'เกิดข้อผิดพลาด');
       }
     } catch (err) {
       Alert.alert('❌ Connection Error', 'ไม่สามารถเชื่อมต่อ Backend ได้\n' + err.message);
@@ -236,7 +223,8 @@ export default function SellScreen({ navigation }) {
   });
 
   const listedCount   = items.filter(i => i.listed).length;
-  const listedValue   = items.filter(i => i.listed).reduce((s, i) => s + i.price, 0);
+  // ใช้ราคาที่ตั้งขาย (ถ้ามี) หรือราคาตลาดในการคำนวณมูลค่ารวม
+  const listedValue   = items.filter(i => i.listed).reduce((s, i) => s + (i.listingPrice || i.price || 0), 0);
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -283,21 +271,28 @@ export default function SellScreen({ navigation }) {
         ))}
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={i => i.id}
-        contentContainerStyle={s.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <SellItemCard item={item} onList={handleList} onRemove={handleRemove} />
-        )}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Text style={s.emptyIcon}>📦</Text>
-            <Text style={s.emptyText}>ไม่มีไอเทมในหมวดนี้</Text>
-          </View>
-        }
-      />
+      {loadingItems ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.textMuted, marginTop: 10 }}>กำลังดึงข้อมูลคลังแสง...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={i => i.id}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <SellItemCard item={item} onList={handleList} onRemove={handleRemove} />
+          )}
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <Text style={s.emptyIcon}>📦</Text>
+              <Text style={s.emptyText}>ไม่มีไอเทมในหมวดนี้</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }

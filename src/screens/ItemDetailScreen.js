@@ -1,13 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, Image, Animated, Alert,
+  Dimensions, Image, Animated, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
-import { formatPrice } from '../data/items';
 
 const { width } = Dimensions.get('window');
+const BASE_URL = 'https://defuse-th-backend-main.onrender.com';
+
+// ✅ ฟังก์ชัน format ราคาใหม่ รองรับทศนิยม 2 ตำแหน่ง
+const formatPriceDetailed = (price) => {
+  if (price == null) return "฿0.00";
+  return `฿${price.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 // Float bar แสดง wear condition
 const FloatBar = ({ float }) => {
@@ -32,13 +38,11 @@ const FloatBar = ({ float }) => {
   return (
     <View style={fbStyles.container}>
       <View style={fbStyles.barBg}>
-        {/* gradient zones */}
         <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#4CAF50' }]} />
         <View style={[fbStyles.zone, { width: '8%', backgroundColor: '#8BC34A' }]} />
         <View style={[fbStyles.zone, { width: '23%', backgroundColor: '#FFC107' }]} />
         <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#FF9800' }]} />
         <View style={[fbStyles.zone, { width: '55%', backgroundColor: '#F44336' }]} />
-        {/* indicator */}
         <View style={[fbStyles.indicator, { left: `${pct}%`, borderColor: getColor(float) }]} />
       </View>
       <View style={fbStyles.labels}>
@@ -69,7 +73,7 @@ const fbStyles = StyleSheet.create({
   zoneLabel: { fontSize: 9, fontWeight: '700' },
 });
 
-// Price history mini chart (svg-less, pure RN)
+// Price history mini chart
 const MiniChart = ({ data }) => {
   const H = 80;
   const W = width - 64;
@@ -83,7 +87,6 @@ const MiniChart = ({ data }) => {
 
   return (
     <View style={{ height: H + 20, position: 'relative', marginBottom: 8 }}>
-      {/* Y grid lines */}
       {[0, 0.5, 1].map(r => (
         <View key={r} style={{
           position: 'absolute', left: 0, right: 0,
@@ -91,7 +94,6 @@ const MiniChart = ({ data }) => {
           backgroundColor: colors.border,
         }} />
       ))}
-      {/* Plot dots connected by view approximation */}
       {points.map((p, i) => (
         <View key={i} style={{
           position: 'absolute',
@@ -100,7 +102,6 @@ const MiniChart = ({ data }) => {
           backgroundColor: colors.accent,
         }} />
       ))}
-      {/* Connect lines using thin rectangles */}
       {points.slice(0, -1).map((p, i) => {
         const next = points[i + 1];
         const dx = next.x - p.x;
@@ -118,12 +119,11 @@ const MiniChart = ({ data }) => {
           }} />
         );
       })}
-      {/* Price labels */}
       <Text style={{ position: 'absolute', left: 0, top: H + 4, color: colors.textMuted, fontSize: 9 }}>
-        {formatPrice(min)}
+        {formatPriceDetailed(min)}
       </Text>
       <Text style={{ position: 'absolute', right: 0, top: H + 4, color: colors.textMuted, fontSize: 9 }}>
-        {formatPrice(max)}
+        {formatPriceDetailed(max)}
       </Text>
     </View>
   );
@@ -132,7 +132,7 @@ const MiniChart = ({ data }) => {
 // Buy Order row
 const BuyOrderRow = ({ price, qty, isHighest }) => (
   <View style={[boStyles.row, isHighest && boStyles.rowHighlight]}>
-    <Text style={[boStyles.price, isHighest && { color: colors.accentGreen }]}>{formatPrice(price)}</Text>
+    <Text style={[boStyles.price, isHighest && { color: colors.accentGreen }]}>{formatPriceDetailed(price)}</Text>
     <View style={boStyles.qtyBox}>
       <Text style={boStyles.qty}>{qty}</Text>
     </View>
@@ -210,7 +210,37 @@ export default function ItemDetailScreen({ route, navigation }) {
 
   const [chartTab, setChartTab] = useState('1M');
   const [infoTab, setInfoTab] = useState('Buy Orders');
-  const [bidAmount, setBidAmount] = useState(item ? item.price * 0.95 : 0);
+
+  // ✅ State สำหรับโหลดราคา Live
+  const [livePrice, setLivePrice] = useState(null);
+  const [liveUsd, setLiveUsd] = useState(null);
+  const [loadingPrice, setLoadingPrice] = useState(true);
+
+  // ดึงชื่อไอเทมให้ตรงกับของ Steam
+  const itemName = item?.wear
+    ? `${item?.weapon} | ${item?.skin} (${item?.wear})`
+    : item?.name || '';
+
+  // โหลดราคาทันทีที่เปิดหน้า Detail
+  useEffect(() => {
+    if (!itemName) return;
+    const loadPrice = async () => {
+      setLoadingPrice(true);
+      try {
+        const res = await fetch(`${BASE_URL}/inventory/price/${encodeURIComponent(itemName)}`);
+        const json = await res.json();
+        if (json.success && json.thb > 0) {
+          setLivePrice(json.thb);
+          setLiveUsd(json.usd);
+        }
+      } catch (err) {
+        console.log("❌ Detail price error:", err);
+      } finally {
+        setLoadingPrice(false);
+      }
+    };
+    loadPrice();
+  }, [itemName]);
 
   if (!item) {
     return (
@@ -220,29 +250,33 @@ export default function ItemDetailScreen({ route, navigation }) {
     );
   }
 
-  // Mock data
+  // ✅ ใช้ราคา Live (ถ้าโหลดมาแล้ว) ถ้ายังให้ใช้ราคาตั้งต้นไปก่อน
+  const displayPrice = livePrice !== null ? livePrice : (item.price || 0);
+  const displayUsd = liveUsd !== null ? liveUsd : ((item.price || 0) / 35);
+
+  // อัปเดตกราฟและข้อมูลจำลองให้ใช้ displayPrice
   const priceHistory = {
-    '1M': [item.price * 1.3, item.price * 1.25, item.price * 1.18, item.price * 1.1, item.price * 1.05, item.price],
-    '3M': [item.price * 1.5, item.price * 1.4, item.price * 1.3, item.price * 1.2, item.price * 1.1, item.price],
-    '1Y': [item.price * 2, item.price * 1.8, item.price * 1.6, item.price * 1.3, item.price * 1.1, item.price],
-    'ALL': [item.price * 3, item.price * 2.5, item.price * 2, item.price * 1.5, item.price * 1.2, item.price],
+    '1M': [displayPrice * 1.3, displayPrice * 1.25, displayPrice * 1.18, displayPrice * 1.1, displayPrice * 1.05, displayPrice],
+    '3M': [displayPrice * 1.5, displayPrice * 1.4, displayPrice * 1.3, displayPrice * 1.2, displayPrice * 1.1, displayPrice],
+    '1Y': [displayPrice * 2, displayPrice * 1.8, displayPrice * 1.6, displayPrice * 1.3, displayPrice * 1.1, displayPrice],
+    'ALL': [displayPrice * 3, displayPrice * 2.5, displayPrice * 2, displayPrice * 1.5, displayPrice * 1.2, displayPrice],
   };
 
   const buyOrders = [
-    { price: Math.round(item.price * 0.97), qty: 1 },
-    { price: Math.round(item.price * 0.93), qty: 1 },
-    { price: Math.round(item.price * 0.88), qty: 1 },
-    { price: Math.round(item.price * 0.82), qty: 2 },
-    { price: Math.round(item.price * 0.75), qty: 1 },
-    { price: Math.round(item.price * 0.65), qty: 3 },
-    { price: Math.round(item.price * 0.50), qty: 6 },
+    { price: displayPrice * 0.97, qty: 1 },
+    { price: displayPrice * 0.93, qty: 1 },
+    { price: displayPrice * 0.88, qty: 1 },
+    { price: displayPrice * 0.82, qty: 2 },
+    { price: displayPrice * 0.75, qty: 1 },
+    { price: displayPrice * 0.65, qty: 3 },
+    { price: displayPrice * 0.50, qty: 6 },
   ];
 
   const latestSales = [
-    { price: item.price, float: item.float, date: '2 Mar', wear: item.wear },
-    { price: Math.round(item.price * 1.05), float: item.float ? item.float - 0.01 : null, date: '28 Feb', wear: item.wear },
-    { price: Math.round(item.price * 0.98), float: item.float ? item.float + 0.005 : null, date: '25 Feb', wear: item.wear },
-    { price: Math.round(item.price * 1.12), float: item.float ? item.float - 0.02 : null, date: '20 Feb', wear: item.wear },
+    { price: displayPrice, float: item.float, date: '2 Mar', wear: item.wear },
+    { price: displayPrice * 1.05, float: item.float ? item.float - 0.01 : null, date: '28 Feb', wear: item.wear },
+    { price: displayPrice * 0.98, float: item.float ? item.float + 0.005 : null, date: '25 Feb', wear: item.wear },
+    { price: displayPrice * 1.12, float: item.float ? item.float - 0.02 : null, date: '20 Feb', wear: item.wear },
   ];
 
   const stickers = item.stattrak ? [
@@ -251,8 +285,6 @@ export default function ItemDetailScreen({ route, navigation }) {
     { name: 'PGL Major', wear: null },
     { name: 'FaZe Clan', wear: 0.08 },
   ] : [];
-
-  const WEAR_SHORT = { 'Factory New': 'FN', 'Minimal Wear': 'MW', 'Field-Tested': 'FT', 'Well-Worn': 'WW', 'Battle-Scarred': 'BS' };
 
   const priceDrop = -12.1;
   const isPriceUp = priceDrop > 0;
@@ -305,14 +337,19 @@ export default function ItemDetailScreen({ route, navigation }) {
         {/* ── PRICE ── */}
         <View style={s.priceSection}>
           <View style={s.priceRow}>
-            <Text style={s.mainPrice}>{formatPrice(item.price)}</Text>
+            {/* ✅ แสดง Spinner ระหว่างโหลด ถ้าโหลดเสร็จแสดงราคาทศนิยม 2 ตำแหน่ง */}
+            {loadingPrice ? (
+               <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+               <Text style={s.mainPrice}>{formatPriceDetailed(displayPrice)}</Text>
+            )}
             <View style={[s.changeBadge, { backgroundColor: isPriceUp ? colors.accentGreen + '22' : colors.accentRed + '22' }]}>
               <Text style={[s.changeText, { color: isPriceUp ? colors.accentGreen : colors.accentRed }]}>
                 {isPriceUp ? '+' : ''}{priceDrop}%
               </Text>
             </View>
           </View>
-          <Text style={s.usdPrice}>${item.priceUSD?.toFixed(2) || (item.price / 350).toFixed(2)} USD</Text>
+          <Text style={s.usdPrice}>${displayUsd.toFixed(2)} USD</Text>
 
           {/* Float */}
           {item.float != null && (
@@ -344,19 +381,19 @@ export default function ItemDetailScreen({ route, navigation }) {
         <View style={s.actionSection}>
           <TouchableOpacity
             style={s.buyNowBtn}
-            onPress={() => navigation.navigate('Payment', { items: [item] })}
+            onPress={() => navigation.navigate('Payment', { items: [{ ...item, price: displayPrice }] })}
           >
-            <Text style={s.buyNowText}>BUY NOW — {formatPrice(item.price)}</Text>
+            <Text style={s.buyNowText}>BUY NOW — {formatPriceDetailed(displayPrice)}</Text>
           </TouchableOpacity>
           <View style={s.secondaryBtns}>
             <TouchableOpacity
               style={s.bidBtn}
-              onPress={() => Alert.alert('Place Bid', `Bid ${formatPrice(Math.round(item.price * 0.95))}?`, [
+              onPress={() => Alert.alert('Place Bid', `Bid ${formatPriceDetailed(displayPrice * 0.95)}?`, [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Confirm', onPress: () => Alert.alert('Bid Placed!', 'You will be notified if accepted.') },
               ])}
             >
-              <Text style={s.bidBtnText}>🏷️ Bid {formatPrice(Math.round(item.price * 0.95))}</Text>
+              <Text style={s.bidBtnText}>🏷️ Bid {formatPriceDetailed(displayPrice * 0.95)}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.autoBidBtn}>
               <Text style={s.autoBidText}>Auto Bid ⚡</Text>
@@ -452,7 +489,7 @@ export default function ItemDetailScreen({ route, navigation }) {
                 </View>
                 {latestSales.map((sale, i) => (
                   <View key={i} style={s.saleRow}>
-                    <Text style={s.salePrice}>{formatPrice(sale.price)}</Text>
+                    <Text style={s.salePrice}>{formatPriceDetailed(sale.price)}</Text>
                     <Text style={s.saleFloat}>{sale.float?.toFixed(6) || '—'}</Text>
                     <Text style={s.saleDate}>{sale.date}</Text>
                   </View>

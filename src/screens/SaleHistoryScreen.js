@@ -2,44 +2,44 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
-import { fetchBuyOrders } from "../data/api"; // ✅ เรียก API จริง
+import { fetchSellOrders } from "../data/api";
 
-export default function BuyHistoryScreen({ navigation }) {
+export default function SaleHistoryScreen({ navigation }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    // โหลดใหม่ทุกครั้งที่เข้ามาหน้านี้
+    const unsubscribe = navigation.addListener('focus', () => loadOrders());
+    return unsubscribe;
+  }, [navigation]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const data = await fetchBuyOrders();
+      const data = await fetchSellOrders();
       if (data.success) {
         setOrders(data.orders);
       }
     } catch (error) {
-      console.log("Error loading buy orders:", error);
+      console.log("Error loading sell orders:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const getStatusText = (status) => {
-    if (status === 'pending') return { text: '⏳ รอผู้ขายจัดส่ง', color: '#f1c40f' };
-    if (status === 'verifying') return { text: '🔍 กำลังตรวจสอบ', color: '#3498db' };
-    if (status === 'completed') return { text: '✅ สำเร็จ', color: '#2ecc71' };
+    if (status === 'pending') return { text: '🚨 ต้องจัดส่งไอเทม!', color: '#e74c3c' };
+    if (status === 'verifying') return { text: '🔍 รอแอดมินตรวจสอบ', color: '#3498db' };
+    if (status === 'completed') return { text: '✅ ขายสำเร็จ (รับเงินแล้ว)', color: '#2ecc71' };
     return { text: status, color: '#888' };
   };
 
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>‹</Text>
-        </TouchableOpacity>
-        <Text style={s.title}>Buy History</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.back}>‹</Text></TouchableOpacity>
+        <Text style={s.title}>Sale History</Text>
         <TouchableOpacity onPress={loadOrders}><Text style={{ fontSize: 18 }}>🔄</Text></TouchableOpacity>
       </View>
 
@@ -56,15 +56,14 @@ export default function BuyHistoryScreen({ navigation }) {
 
             return (
               <TouchableOpacity
-                style={s.card}
-                // ✅ ส่งข้อมูล order ไปหน้า Detail และบอกว่านี่คือ "ผู้ซื้อ" (isSeller: false)
-                onPress={() => navigation.navigate("BuyHistoryDetail", { order: item, isSeller: false })}
+                style={[s.card, item.status === 'pending' && { borderColor: '#e74c3c', borderWidth: 1 }]}
+                // ✅ ส่งไปหน้า Detail เดียวกัน แต่บอกว่าเราคือ "ผู้ขาย" (isSeller: true)
+                onPress={() => navigation.navigate("BuyHistoryDetail", { order: item, isSeller: true })}
               >
                 <View style={s.cardLeft}>
                   {i?.image ? (
                     <View style={s.imgWrap}>
                       <Image source={{ uri: i.image }} style={s.img} resizeMode="contain" />
-                      {i?.rarityColor && <View style={[s.rarityBar, { backgroundColor: i.rarityColor }]} />}
                     </View>
                   ) : (
                     <View style={[s.imgWrap, s.imgPlaceholder]}><Text style={{ fontSize: 22 }}>🔫</Text></View>
@@ -78,13 +77,14 @@ export default function BuyHistoryScreen({ navigation }) {
                   </View>
                 </View>
                 <View style={s.cardRight}>
-                  <Text style={s.price}>฿{(item.price || 0).toLocaleString()}</Text>
+                  {/* โชว์ยอดที่คนขายจะได้รับจริงๆ (หัก 5%) */}
+                  <Text style={s.price}>+ ฿{(item.sellerReceive || 0).toLocaleString()}</Text>
                   <Text style={s.arrow}>›</Text>
                 </View>
               </TouchableOpacity>
             );
           }}
-          ListEmptyComponent={<Text style={s.empty}>ยังไม่มีประวัติการซื้อ</Text>}
+          ListEmptyComponent={<Text style={s.empty}>ยังไม่มีไอเทมที่ขายออก</Text>}
         />
       )}
     </SafeAreaView>
@@ -102,12 +102,11 @@ const s = StyleSheet.create({
   imgWrap: { width: 64, height: 40, borderRadius: 8, overflow: "hidden", backgroundColor: "#1a1a1a", marginRight: 12, justifyContent: "center", alignItems: "center" },
   imgPlaceholder: { backgroundColor: "#222" },
   img: { width: 64, height: 36 },
-  rarityBar: { position: "absolute", bottom: 0, left: 0, right: 0, height: 3 },
   info:     { flex: 1 },
   weapon:   { color: colors.textMuted, fontSize: 10 },
   skin:     { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
   date:     { fontSize: 11, marginTop: 4 },
-  price:    { color: colors.primary, fontWeight: "700" },
+  price:    { color: '#2ecc71', fontWeight: "700" },
   arrow:    { color: colors.textMuted, fontSize: 20 },
   empty: { textAlign: "center", marginTop: 50, color: colors.textMuted },
 });

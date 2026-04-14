@@ -11,39 +11,44 @@ import { colors } from '../theme/colors';
 const BASE_URL = 'https://defuse-th-backend-main.onrender.com';
 const FILTERS  = ['Sellable', 'Trade Lock', 'Containers'];
 
-// ── In-memory price cache (ร่วมกับ HomeScreen) ───────────────────────────────
+// ✅ ฟังก์ชัน format ราคาใหม่ รองรับทศนิยม 2 ตำแหน่ง
+const formatPriceDetailed = (price) => {
+  if (price == null) return "฿0.00";
+  return `฿${price.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 const priceMemCache = new Map();
-const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 นาที
+const PRICE_CACHE_TTL = 5 * 60 * 1000; 
 
 async function fetchSteamPrice(itemName) {
   if (!itemName || itemName.trim() === '') return null;
   const cached = priceMemCache.get(itemName);
   if (cached && Date.now() - cached.ts < PRICE_CACHE_TTL) return cached;
+  
   try {
-    const res  = await fetch(
-      `${BASE_URL}/market/steam-price-live/${encodeURIComponent(itemName)}`
-    );
+    const res  = await fetch(`${BASE_URL}/inventory/price/${encodeURIComponent(itemName)}`);
     const json = await res.json();
-    if (json.success && json.lowestThb > 0) {
+    
+    if (json.success && json.thb > 0) {
       const result = {
-        lowestThb: json.lowestThb,
-        lowestUsd: json.lowestUsd,
+        lowestThb: json.thb,
+        lowestUsd: json.usd,
         ts: Date.now(),
       };
       priceMemCache.set(itemName, result);
       return result;
     }
-  } catch {}
+  } catch (err) {
+    console.log("❌ Fetch price error:", err);
+  }
   return null;
 }
 
-// ── ItemCard — แสดงราคา Steam real-time ──────────────────────────────────────
 const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
   const [steamThb, setSteamThb]       = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
   const mountedRef = useRef(true);
 
-  // สร้าง Steam market name: "AK-47 | Redline (Field-Tested)"
   const itemName = item.wear
     ? `${item.weapon} | ${item.skin} (${item.wear})`
     : item.name || '';
@@ -58,7 +63,6 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
         const price = result?.lowestThb ?? null;
         setSteamThb(price);
         setLoadingPrice(false);
-        // แจ้ง parent เพื่ออัปเดต total value
         if (price !== null && onPriceLoaded) onPriceLoaded(item.id, price);
       }
     };
@@ -75,17 +79,9 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
         <View style={[cs.rarityBar, { backgroundColor: item.rarityColor || '#8847FF' }]} />
         <View style={cs.imageBox}>
           <Image source={{ uri: item.image }} style={cs.image} resizeMode="contain" />
-          {item.stattrak && (
-            <View style={cs.stBadge}><Text style={cs.stText}>StatTrak™</Text></View>
-          )}
-          {item.listed && (
-            <View style={cs.listedOverlay}>
-              <Text style={cs.listedOverlayText}>LISTED</Text>
-            </View>
-          )}
-          {item.tradeLock && (
-            <View style={cs.lockBadge}><Text style={cs.lockText}>🔒</Text></View>
-          )}
+          {item.stattrak && <View style={cs.stBadge}><Text style={cs.stText}>StatTrak™</Text></View>}
+          {item.listed && <View style={cs.listedOverlay}><Text style={cs.listedOverlayText}>LISTED</Text></View>}
+          {item.tradeLock && <View style={cs.lockBadge}><Text style={cs.lockText}>🔒</Text></View>}
         </View>
         <View style={cs.info}>
           <Text style={cs.weapon} numberOfLines={1}>{item.weapon}</Text>
@@ -101,19 +97,17 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
                   : item.wear}
               </Text>
             )}
-            {item.float != null && (
-              <Text style={cs.float}>{item.float.toFixed(4)}</Text>
-            )}
+            {item.float != null && <Text style={cs.float}>{item.float.toFixed(4)}</Text>}
           </View>
 
-          {/* ── ราคา Steam ── */}
           <View style={cs.priceRow}>
             {loadingPrice ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
               <>
+                {/* ✅ ใช้ formatPriceDetailed โชว์ทศนิยม 2 ตำแหน่ง */}
                 <Text style={[cs.price, !hasSteam && cs.priceFallback]}>
-                  ฿{displayPrice.toLocaleString()}
+                  {formatPriceDetailed(displayPrice)}
                 </Text>
                 {hasSteam && <View style={cs.liveDot} />}
               </>
@@ -122,13 +116,8 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
         </View>
       </TouchableOpacity>
 
-      {/* ── Sell Button ── */}
       <TouchableOpacity
-        style={[
-          cs.sellBtn,
-          item.tradeLock && cs.sellBtnLocked,
-          item.listed    && cs.sellBtnListed,
-        ]}
+        style={[cs.sellBtn, item.tradeLock && cs.sellBtnLocked, item.listed && cs.sellBtnListed]}
         disabled={item.tradeLock}
         onPress={() => !item.tradeLock && onSell(item)}
       >
@@ -140,7 +129,6 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
   );
 };
 
-// ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 export default function InventoryScreen({ navigation }) {
   const [items,        setItems]        = useState([]);
   const [search,       setSearch]       = useState('');
@@ -148,10 +136,8 @@ export default function InventoryScreen({ navigation }) {
   const [balance,      setBalance]      = useState(0);
   const [loading,      setLoading]      = useState(true);
 
-  // เก็บราคา Steam ต่อ item id → ใช้คำนวณ total
   const [steamPrices, setSteamPrices] = useState({});
 
-  // โหลดใหม่ทุกครั้งที่กลับมาหน้านี้
   useFocusEffect(
     React.useCallback(() => {
       loadInventory();
@@ -168,7 +154,7 @@ export default function InventoryScreen({ navigation }) {
 
   const loadInventory = async () => {
     setLoading(true);
-    setSteamPrices({}); // reset ราคาเก่า
+    setSteamPrices({}); 
     try {
       const user = await getStoredUser();
       if (!user?.steamId) { setLoading(false); return; }
@@ -188,13 +174,21 @@ export default function InventoryScreen({ navigation }) {
   const mapSteamItem = (item) => {
     const name  = item.market_hash_name || item.name || '';
     const parts = name.split('|');
+    const itemId = item.assetid || item.assetId || item.id || Math.random().toString();
+
     return {
-      id:          item.assetid || item.id || Math.random().toString(),
+      id:          itemId,
+      assetId:     itemId,
       name,
       weapon:      parts[0]?.trim() || 'Unknown',
       skin:        parts[1]?.trim().replace(/\(.*\)/, '').trim() || '',
       wear:        item.wear || extractWear(parts[1] || ''),
-      price:       item.price || 0,
+      
+      // ✅ จุดไคลแมกซ์: ดึงราคามาจาก marketPriceTHB ให้ถูกต้อง 
+      price:       item.marketPriceTHB || item.price || 0,
+      priceUSD:    item.marketPriceUSD || 0, // ส่ง USD ไปให้หน้า Detail ด้วย
+      
+      rarity:      item.rarity || 'Mil-Spec Grade', 
       rarityColor: item.rarityColor || '#8847FF',
       image:
         item.image ||
@@ -209,13 +203,11 @@ export default function InventoryScreen({ navigation }) {
     };
   };
 
-  // แยก wear จาก string "(Field-Tested)" ถ้ามี
   const extractWear = (str) => {
     const m = str.match(/\((.*?)\)/);
     return m ? m[1] : null;
   };
 
-  // callback จาก ItemCard เมื่อโหลดราคา Steam เสร็จ
   const handlePriceLoaded = (id, price) => {
     setSteamPrices(prev => ({ ...prev, [id]: price }));
   };
@@ -232,7 +224,6 @@ export default function InventoryScreen({ navigation }) {
     return result;
   }, [search, activeFilter, items]);
 
-  // Total Value = รวมราคา Steam ของ item ที่โหลดแล้ว + fallback item.price ที่ยังไม่ได้โหลด
   const totalValue = useMemo(() => {
     return items.reduce((sum, item) => {
       const steam = steamPrices[item.id];
@@ -244,7 +235,6 @@ export default function InventoryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      {/* ── Header ── */}
       <View style={s.header}>
         <Text style={s.headerTitle}>Inventory</Text>
         <View style={s.headerRight}>
@@ -260,13 +250,12 @@ export default function InventoryScreen({ navigation }) {
         </View>
       </View>
 
-      {/* ── Total Value Banner ── */}
       <View style={s.valueBanner}>
         <View>
           <Text style={s.valueLabel}>TOTAL VALUE</Text>
           <View style={s.valuePriceRow}>
-            <Text style={s.valueAmount}>฿{totalValue.toLocaleString()}</Text>
-            {/* แสดงว่าโหลดราคาครบหรือยัง */}
+            {/* ✅ อัปเดต Total Value เป็นทศนิยมด้วย */}
+            <Text style={s.valueAmount}>{formatPriceDetailed(totalValue)}</Text>
             {steamLoadedCount < items.length && items.length > 0 && (
               <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 8 }} />
             )}
@@ -294,7 +283,6 @@ export default function InventoryScreen({ navigation }) {
         </View>
       </View>
 
-      {/* ── Search ── */}
       <View style={s.searchRow}>
         <View style={s.searchBox}>
           <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
@@ -308,7 +296,6 @@ export default function InventoryScreen({ navigation }) {
         </View>
       </View>
 
-      {/* ── Filters ── */}
       <View style={s.filterRow}>
         {FILTERS.map(f => (
           <TouchableOpacity
@@ -321,7 +308,6 @@ export default function InventoryScreen({ navigation }) {
         ))}
       </View>
 
-      {/* ── List ── */}
       {loading ? (
         <View style={s.loadingBox}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -354,7 +340,6 @@ export default function InventoryScreen({ navigation }) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: {

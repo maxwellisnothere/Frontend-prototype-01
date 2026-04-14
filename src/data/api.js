@@ -2,8 +2,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ====== CONFIG ======
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-
+const BASE_URL = process.env.BASE_URL || "http://10.0.2.2:3000";
 // ====== AUTH ======
 
 export function getSteamLoginURL() {
@@ -127,9 +126,19 @@ export async function fetchItemById(id) {
 
 export async function fetchInventory(steamId) {
   const token = await getStoredToken();
-  const res = await fetch(`${BASE_URL}/inventory/${steamId}`, {
+  
+  // ✅ เปลี่ยน URL ตรงนี้เป็น /inventory/sync
+  const res = await fetch(`${BASE_URL}/inventory/sync`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  
+  // ✅ (แถม) ดักจับ Error ไว้หน่อย เพื่อไม่ให้แอปแครชเวลาเซิร์ฟเวอร์ล่มหรือตอบกลับเป็น HTML
+  if (!res.ok) {
+     const errorText = await res.text();
+     console.log("❌ API Error text:", errorText);
+     return { success: false, items: [] }; 
+  }
+
   return res.json();
 }
 
@@ -198,6 +207,78 @@ export async function depositBalance(amount) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ amount }),
+  });
+  return res.json();
+}
+
+export async function withdrawBalance(payload) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/withdraw`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+// ====== ORDERS (HISTORY) ======
+
+export async function fetchBuyOrders() {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/orders/buy`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+export async function fetchSellOrders() {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/orders/sell`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+export async function confirmTradeOffer(orderId, tradeOfferId) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/confirm-trade/${orderId}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ tradeOfferId }),
+  });
+  return res.json();
+}
+
+// ====== MARKET LISTING ======
+
+// ฟังก์ชันสำหรับวางขายไอเทม
+export async function listItem(item, price) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/list`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ item, price }),
+  });
+  return res.json();
+}
+
+// ฟังก์ชันสำหรับถอนการวางขาย
+export async function removeListing(listingId) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/list/${listingId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
   return res.json();
 }

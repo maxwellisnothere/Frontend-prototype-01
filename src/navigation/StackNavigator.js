@@ -11,6 +11,9 @@ import BuyHistoryScreen from '../screens/BuyHistoryScreen';
 import BuyHistoryDetailScreen from '../screens/BuyHistoryDetailScreen';
 import SecurityScreen from '../screens/SecurityScreen'; 
 
+// ✅ 1. Import หน้า SaleHistoryScreen ที่เราเพิ่งสร้างเข้ามา
+import SaleHistoryScreen from '../screens/SaleHistoryScreen';
+
 const Stack = createNativeStackNavigator();
 
 export default function StackNavigator() {
@@ -33,8 +36,10 @@ export default function StackNavigator() {
       <Stack.Screen name="BuyHistory" component={BuyHistoryScreen} />
       <Stack.Screen name="BuyHistoryDetail" component={BuyHistoryDetailScreen} />
       
+      {/* ✅ 2. เพิ่มหน้า SaleHistory ลงใน Stack */}
+      <Stack.Screen name="SaleHistory" component={SaleHistoryScreen} />
       
-      {/* --- 2. เพิ่มหน้า Security ลงใน Stack --- */}
+      {/* --- เพิ่มหน้า Security ลงใน Stack --- */}
       <Stack.Screen name="Security" component={SecurityScreen} />
     </Stack.Navigator>
   );

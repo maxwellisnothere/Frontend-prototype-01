@@ -1,278 +1,142 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-} from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, TextInput, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../theme/colors";
+import { confirmTradeOffer } from "../data/api";
 
-// แปลง wear string → color
 const WEAR_COLOR_MAP = {
-  "Factory New": "#4ade80",
-  "Minimal Wear": "#a3e635",
-  "Field-Tested": "#facc15",
-  "Well-Worn": "#fb923c",
-  "Battle-Scarred": "#f87171",
+  "Factory New": "#4ade80", "Minimal Wear": "#a3e635", "Field-Tested": "#facc15",
+  "Well-Worn": "#fb923c", "Battle-Scarred": "#f87171",
 };
 
 export default function BuyHistoryDetailScreen({ route, navigation }) {
-  const { item } = route.params || {};
+  // ✅ รับ order และ isSeller จากหน้าที่แล้วมา
+  const { order, isSeller } = route.params || {};
+  const item = order?.item;
+  
+  const [tradeIdInput, setTradeIdInput] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  if (!item) {
+  if (!order || !item) {
     return (
       <SafeAreaView style={s.safe}>
-        <Text style={{ color: "#fff", padding: 20 }}>ไม่พบข้อมูล</Text>
+        <Text style={{ color: "#fff", padding: 20 }}>ไม่พบข้อมูลออเดอร์</Text>
       </SafeAreaView>
     );
   }
 
-  const price =
-    typeof item.price === "number"
-      ? item.price
-      : parseInt(item.price) || 0;
+  const price = order.price || 0;
+  const serviceFee = order.fee || 0;
+  const wearColor = item.wearColor || WEAR_COLOR_MAP[item.wear] || "#888";
+  
+  // คนขายจะได้เงินหักค่าธรรมเนียม ส่วนคนซื้อต้องดูยอดรวม
+  const displayTotal = isSeller ? order.sellerReceive : (price + serviceFee);
 
-  const serviceFee =
-    typeof item.serviceFee === "number"
-      ? item.serviceFee
-      : parseInt(item.serviceFee) || 0;
+  const handleConfirmShipment = async () => {
+    if (!tradeIdInput) return Alert.alert("Error", "กรุณากรอก Trade Offer ID");
+    setLoading(true);
+    try {
+      const res = await confirmTradeOffer(order.orderId, tradeIdInput);
+      if (res.success) {
+        Alert.alert("สำเร็จ", "ส่งข้อมูลการจัดส่งแล้ว รอแอดมินตรวจสอบครับ", [
+          { text: "OK", onPress: () => navigation.goBack() }
+        ]);
+      } else {
+        throw new Error(res.error);
+      }
+    } catch (err) {
+      Alert.alert("เกิดข้อผิดพลาด", err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const wearColor =
-    item.wearColor || WEAR_COLOR_MAP[item.wear] || "#888";
-
-  const total =
-    typeof item.total === "number"
-      ? item.total
-      : price + serviceFee;
+  const renderStatus = () => {
+    if (order.status === 'completed') return <View style={[s.statusBadge, { borderColor: '#2ecc71' }]}><Text style={{ color: '#2ecc71' }}>✅ ทำรายการสำเร็จ (โอนเงินแล้ว)</Text></View>;
+    if (order.status === 'verifying') return <View style={[s.statusBadge, { borderColor: '#3498db' }]}><Text style={{ color: '#3498db' }}>🔍 กำลังตรวจสอบ Trade Offer โดยระบบ</Text></View>;
+    
+    // สถานะ pending
+    if (isSeller) {
+      return (
+        <View style={s.sellerActionBox}>
+          <Text style={s.sellerAlert}>⚠️ กรุณาส่งไอเทมให้ผู้ซื้อผ่าน Steam</Text>
+          <Text style={{ color: '#ccc', fontSize: 12, marginBottom: 10 }}>เมื่อส่งเสร็จแล้ว ให้นำ Trade Offer ID มากรอกที่นี่</Text>
+          <TextInput
+            style={s.input}
+            placeholder="Trade Offer ID เช่น 391283..."
+            placeholderTextColor="#666"
+            value={tradeIdInput}
+            onChangeText={setTradeIdInput}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity style={s.confirmBtn} onPress={handleConfirmShipment} disabled={loading}>
+            {loading ? <ActivityIndicator color="#000" /> : <Text style={s.confirmBtnText}>ยืนยันการจัดส่ง</Text>}
+          </TouchableOpacity>
+        </View>
+      );
+    } else {
+      return <View style={[s.statusBadge, { borderColor: '#f1c40f' }]}><Text style={{ color: '#f1c40f' }}>⏳ รอผู้ขายจัดส่งไอเทมให้คุณ</Text></View>;
+    }
+  };
 
   return (
     <SafeAreaView style={s.safe}>
-      {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={s.back}>‹</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()}><Text style={s.back}>‹</Text></TouchableOpacity>
         <Text style={s.title}>Order Detail</Text>
         <View style={{ width: 30 }} />
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
-
-        {/* Image */}
         <View style={s.imageCard}>
-          {item.image ? (
-            <Image
-              source={{ uri: item.image }}
-              style={s.itemImage}
-              resizeMode="contain"
-            />
-          ) : (
-            <Text style={{ fontSize: 48 }}>🔫</Text>
-          )}
-
-          {item.rarityColor && (
-            <View
-              style={[s.rarityBar, { backgroundColor: item.rarityColor }]}
-            />
-          )}
+          {item.image ? <Image source={{ uri: item.image }} style={s.itemImage} resizeMode="contain" /> : <Text style={{ fontSize: 48 }}>🔫</Text>}
+          {item.rarityColor && <View style={[s.rarityBar, { backgroundColor: item.rarityColor }]} />}
         </View>
 
-        {/* Name */}
         <View style={s.nameBlock}>
-          {item.weapon ? (
-            <>
-              <Text style={s.weaponLabel}>{item.weapon}</Text>
-              <Text style={s.skinLabel}>{item.skin}</Text>
-            </>
-          ) : (
-            <Text style={s.skinLabel}>
-              {item.name || "Unknown Item"}
-            </Text>
-          )}
-
-          {/* Rarity */}
+          <Text style={s.weaponLabel}>{item.weapon}</Text>
+          <Text style={s.skinLabel}>{item.skin}</Text>
           {item.rarity && (
-            <View
-              style={[
-                s.rarityBadge,
-                { borderColor: item.rarityColor || "#888" },
-              ]}
-            >
-              <View
-                style={[
-                  s.rarityDot,
-                  { backgroundColor: item.rarityColor || "#888" },
-                ]}
-              />
-              <Text
-                style={[
-                  s.rarityText,
-                  { color: item.rarityColor || "#888" },
-                ]}
-              >
-                {item.rarity}
-              </Text>
+            <View style={[s.rarityBadge, { borderColor: item.rarityColor || "#888" }]}>
+              <View style={[s.rarityDot, { backgroundColor: item.rarityColor || "#888" }]} />
+              <Text style={[s.rarityText, { color: item.rarityColor || "#888" }]}>{item.rarity}</Text>
             </View>
           )}
-
-          {/* StatTrak */}
-          {item.stattrak && (
-            <View style={s.stattrakBadge}>
-              <Text style={s.stattrakText}>★ StatTrak™</Text>
-            </View>
-          )}
-
-          {/* Wear */}
-          {item.wear && (
-            <View
-              style={[
-                s.wearBadge,
-                { borderColor: wearColor },
-              ]}
-            >
-              <View
-                style={[
-                  s.wearDot,
-                  { backgroundColor: wearColor },
-                ]}
-              />
-              <Text style={[s.wearText, { color: wearColor }]}>
-                {item.wear}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ✅ FLOAT BAR (FIXED) */}
-        <View style={s.floatSection}>
-          <FloatBar float={item.float} />
         </View>
 
         <View style={s.divider} />
 
-        {/* ORDER */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>ORDER DETAILS</Text>
-          <Row label="Date" value={item.date || "-"} />
-          <Row label="Payment Method" value={item.paymentMethod || "-"} />
-          <Row
-            label="StatTrak™"
-            value={item.stattrak ? "Yes" : "No"}
-            valueStyle={item.stattrak ? s.stattrakRowValue : undefined}
-          />
+          <Text style={s.sectionTitle}>ORDER INFO</Text>
+          <Row label="Order ID" value={order.orderId} />
+          <Row label="Buyer" value={order.buyerName} />
+          <Row label="Seller" value={order.sellerName} />
         </View>
 
         <View style={s.divider} />
 
-        {/* PRICE */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>PRICE DETAILS</Text>
+          <Text style={s.sectionTitle}>FINANCIALS</Text>
           <Row label="Item Price" value={`฿${price.toLocaleString()}`} />
-          <Row label="Service Fee" value={`฿${serviceFee.toLocaleString()}`} />
-
+          {isSeller ? (
+             <Row label="Market Fee (5%)" value={`- ฿${serviceFee.toLocaleString()}`} valueStyle={{ color: '#e74c3c' }} />
+          ) : (
+             <Row label="Service Fee" value={`฿${serviceFee.toLocaleString()}`} />
+          )}
           <View style={s.totalRow}>
-            <Text style={s.totalLabel}>Total Paid</Text>
-            <Text style={s.totalValue}>
-              ฿{total.toLocaleString()}
-            </Text>
+            <Text style={s.totalLabel}>{isSeller ? "You Will Receive" : "Total Paid"}</Text>
+            <Text style={s.totalValue}>฿{displayTotal.toLocaleString()}</Text>
           </View>
         </View>
 
-        {/* STATUS */}
         <View style={s.statusWrap}>
-          <View style={s.statusBadge}>
-            <Text style={s.statusText}>✅ ชำระเงินสำเร็จ</Text>
-          </View>
+          {renderStatus()}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-//
-// 🔥 FLOAT BAR (ตัวจริง)
-//
-const FloatBar = ({ float }) => {
-  if (float === undefined || float === null) return null;
-
-  const f = Math.max(0, Math.min(parseFloat(float) || 0, 1));
-  const pct = f * 100;
-
-  const getColor = (p) => {
-    if (p <= 7) return "#4CAF50";
-    if (p <= 15) return "#8BC34A";
-    if (p <= 38) return "#FFC107";
-    if (p <= 45) return "#FF9800";
-    return "#F44336";
-  };
-
-  return (
-    <View>
-      <View style={fb.bar}>
-        <View style={[fb.zone, { width: "7%", backgroundColor: "#4CAF50" }]} />
-        <View style={[fb.zone, { width: "8%", backgroundColor: "#8BC34A" }]} />
-        <View style={[fb.zone, { width: "23%", backgroundColor: "#FFC107" }]} />
-        <View style={[fb.zone, { width: "7%", backgroundColor: "#FF9800" }]} />
-        <View style={[fb.zone, { width: "55%", backgroundColor: "#F44336" }]} />
-
-        <View
-          style={[
-            fb.indicator,
-            {
-              left: `${pct}%`,
-              transform: [{ translateX: -8 }],
-              borderColor: getColor(pct),
-            },
-          ]}
-        />
-      </View>
-
-      <View style={fb.labels}>
-        <Text style={{ color: "#4CAF50", fontSize: 9 }}>FN</Text>
-        <Text style={{ color: "#8BC34A", fontSize: 9 }}>MW</Text>
-        <Text style={{ color: "#FFC107", fontSize: 9 }}>FT</Text>
-        <Text style={{ color: "#FF9800", fontSize: 9 }}>WW</Text>
-        <Text style={{ color: "#F44336", fontSize: 9 }}>BS</Text>
-      </View>
-
-      <Text style={{ color: "#aaa", fontSize: 10 }}>
-        Float: {f.toFixed(4)}
-      </Text>
-    </View>
-  );
-};
-
-const fb = StyleSheet.create({
-  bar: {
-    height: 8,
-    flexDirection: "row",
-    borderRadius: 4,
-    overflow: "hidden",
-    position: "relative",
-    marginBottom: 4,
-  },
-  zone: { height: 8 },
-  indicator: {
-    position: "absolute",
-    top: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#000",
-    borderWidth: 2,
-  },
-  labels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-});
-
-//
-// Helper
-//
 function Row({ label, value, valueStyle }) {
   return (
     <View style={s.row}>
@@ -282,86 +146,35 @@ function Row({ label, value, valueStyle }) {
   );
 }
 
-//
-// Styles
-//
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: 32 },
-
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: colors.surface,
-  },
+  header: { flexDirection: "row", justifyContent: "space-between", padding: 16, backgroundColor: colors.surface },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
   back: { color: colors.textPrimary, fontSize: 28 },
-
-  imageCard: {
-    backgroundColor: "#111",
-    margin: 16,
-    borderRadius: 16,
-    height: 180,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
+  imageCard: { backgroundColor: "#111", margin: 16, borderRadius: 16, height: 180, justifyContent: "center", alignItems: "center", position: 'relative', overflow: 'hidden' },
   itemImage: { width: "80%", height: 120 },
-
-  rarityBar: {
-    position: "absolute",
-    bottom: 0,
-    height: 4,
-    left: 0,
-    right: 0,
-  },
-
+  rarityBar: { position: "absolute", bottom: 0, height: 4, left: 0, right: 0 },
   nameBlock: { alignItems: "center" },
   weaponLabel: { color: "#888" },
   skinLabel: { color: "#fff", fontSize: 20, fontWeight: "800" },
-
-  floatSection: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: "#111",
-    padding: 12,
-    borderRadius: 12,
-  },
-
-  divider: {
-    borderTopWidth: 1,
-    borderColor: "#222",
-    margin: 16,
-  },
-
+  rarityBadge: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, marginTop: 6, gap: 4 },
+  rarityDot: { width: 6, height: 6, borderRadius: 3 },
+  rarityText: { fontSize: 10, fontWeight: 'bold' },
+  divider: { borderTopWidth: 1, borderColor: "#222", margin: 16 },
   section: { paddingHorizontal: 16 },
-  sectionTitle: { color: "#666", marginBottom: 10 },
-
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-
-  rowLabel: { color: "#aaa" },
-  rowValue: { color: "#fff" },
-
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
-  },
-
-  totalLabel: { color: "#fff", fontWeight: "800" },
-  totalValue: { color: colors.primary, fontWeight: "900" },
-
-  statusWrap: { alignItems: "center", marginTop: 20 },
-  statusBadge: {
-    padding: 10,
-    borderRadius: 20,
-    borderColor: "#2ecc71",
-    borderWidth: 1,
-  },
-  statusText: { color: "#2ecc71" },
+  sectionTitle: { color: "#666", marginBottom: 10, fontSize: 12, fontWeight: 'bold' },
+  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  rowLabel: { color: "#aaa", fontSize: 13 },
+  rowValue: { color: "#fff", fontSize: 13 },
+  totalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  totalLabel: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  totalValue: { color: colors.primary, fontWeight: "900", fontSize: 18 },
+  statusWrap: { alignItems: "center", marginTop: 30, paddingHorizontal: 16 },
+  statusBadge: { padding: 12, borderRadius: 8, borderWidth: 1, width: '100%', alignItems: 'center', backgroundColor: '#111' },
+  sellerActionBox: { backgroundColor: '#1a1a1a', padding: 16, borderRadius: 12, width: '100%', borderWidth: 1, borderColor: '#333' },
+  sellerAlert: { color: '#f1c40f', fontWeight: 'bold', fontSize: 14, marginBottom: 4 },
+  input: { backgroundColor: '#000', color: '#fff', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#444', marginBottom: 12 },
+  confirmBtn: { backgroundColor: colors.primary, padding: 14, borderRadius: 8, alignItems: 'center' },
+  confirmBtnText: { color: '#000', fontWeight: 'bold' },
 });
