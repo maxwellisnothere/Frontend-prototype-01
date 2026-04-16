@@ -1,47 +1,48 @@
 import React, { useState, useEffect } from "react";
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, Modal, TextInput, ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, Modal, TextInput, ActivityIndicator, ImageBackground
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../theme/colors";
-import {
-  logout,
-  getStoredUser,
-  depositBalance,
-  withdrawBalance,
-} from "../data/api";
+import { logout, getStoredUser, depositBalance, withdrawBalance } from "../data/api";
 import { useBalance } from "../context/BalanceContext";
 
-// Component สำหรับเมนูแต่ละแถว
-const MenuItem = ({ icon, label, sublabel, onPress, danger = false, accent = false }) => (
-  <TouchableOpacity style={ms.item} onPress={onPress} activeOpacity={0.7}>
-    <View style={[
-      ms.iconBox,
-      danger && { backgroundColor: colors.accentRed + "22" },
-      accent && { backgroundColor: colors.primary + "22" },
-    ]}>
-      <Text style={ms.icon}>{icon}</Text>
-    </View>
-    <View style={ms.textBox}>
-      <Text style={[ms.label, danger && { color: colors.accentRed }]}>{label}</Text>
-      {sublabel && <Text style={ms.sublabel}>{sublabel}</Text>}
-    </View>
-    <Text style={ms.arrow}>›</Text>
+// ==========================================
+// 1. REUSABLE COMPONENTS (GRID MENU)
+// ==========================================
+const MenuButton = ({ label, onPress, isDanger }) => (
+  <TouchableOpacity 
+    style={[s.menuBtn, isDanger && s.menuBtnDanger]} 
+    onPress={onPress} 
+    activeOpacity={0.8}
+  >
+    <Text style={[s.menuBtnLabel, isDanger && s.menuBtnLabelDanger]}>{label}</Text>
   </TouchableOpacity>
 );
 
+const CustomInput = ({ placeholder, value, onChangeText, isNumeric }) => (
+  <TextInput
+    style={s.inputField}
+    placeholder={placeholder}
+    placeholderTextColor="#666"
+    keyboardType={isNumeric ? "numeric" : "default"}
+    value={value}
+    onChangeText={onChangeText}
+  />
+);
+
+// ==========================================
+// 2. MAIN SCREEN
+// ==========================================
 export default function ProfileScreen({ navigation }) {
   const { balance, loadBalance } = useBalance();
   const [user, setUser] = useState(null);
-  
-  // ✅ เพิ่ม State สำหรับจัดการปุ่มหมุนโหลด
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // State สำหรับ Modal เติมเงิน
   const [depositVisible, setDepositVisible] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
 
-  // State สำหรับ Modal ถอนเงิน
   const [withdrawVisible, setWithdrawVisible] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [bankName, setBankName] = useState("");
@@ -58,69 +59,50 @@ export default function ProfileScreen({ navigation }) {
     if (stored) setUser(stored);
   };
 
-  // --- Logic เติมเงิน ---
+  // --- API Handlers ---
   const handleDeposit = async () => {
     const amount = parseInt(depositAmount);
     if (!amount || amount <= 0) return Alert.alert("Error", "กรุณากรอกจำนวนเงิน");
     if (amount < 20) return Alert.alert("ขั้นต่ำ", "เติมเงินขั้นต่ำ ฿20");
 
-    setIsProcessing(true); // 🟢 เริ่มหมุนโหลด
+    setIsProcessing(true);
     try {
       const response = await depositBalance(amount);
-      
-      // ดักจับ error จาก backend ที่ส่งมาเป็น object { error: '...' }
-      if (response && response.error) {
-         throw new Error(response.error); 
-      }
-      
+      if (response?.error) throw new Error(response.error);
       setDepositVisible(false);
       setDepositAmount("");
       Alert.alert("✅ สำเร็จ", `เติมเงิน ฿${amount.toLocaleString()} เรียบร้อย`);
       await loadBalance();
     } catch (error) {
-      Alert.alert("ข้อผิดพลาด", error.message || "ไม่สามารถเติมเงินได้ในขณะนี้");
+      Alert.alert("ข้อผิดพลาด", error.message || "ไม่สามารถเติมเงินได้");
     } finally {
-      setIsProcessing(false); // 🔴 หยุดหมุนโหลดเสมอ
+      setIsProcessing(false);
     }
   };
 
-  // --- Logic ถอนเงิน ---
   const handleWithdraw = async () => {
     const amount = parseInt(withdrawAmount);
-    
-    if (!amount || amount <= 0) return Alert.alert("Error", "กรุณากรอกจำนวนเงิน");
-    if (amount < 100) return Alert.alert("ขั้นต่ำ", "ระบบกำหนดขั้นต่ำการถอนที่ 100 บาท");
+    if (!amount || amount < 100) return Alert.alert("ขั้นต่ำ", "ระบบกำหนดขั้นต่ำการถอนที่ 100 บาท");
     if (amount > balance) return Alert.alert("ยอดเงินไม่พอ", "คุณมียอดเงินไม่เพียงพอ");
-    if (!bankName || !accountNumber || !accountName) {
-      return Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลบัญชีให้ครบถ้วน");
-    }
+    if (!bankName || !accountNumber || !accountName) return Alert.alert("ข้อมูลไม่ครบ", "กรุณากรอกข้อมูลบัญชีให้ครบถ้วน");
 
     setWithdrawVisible(false); 
-    
-    Alert.alert("ยืนยันการถอนเงิน", `ถอนเงิน ฿${amount.toLocaleString()} เข้าบัญชี:\n\n${bankName}\nเลขบัญชี: ${accountNumber}\nชื่อ: ${accountName}`, [
+    Alert.alert("ยืนยันการถอนเงิน", `ถอนเงิน ฿${amount.toLocaleString()}\nธนาคาร: ${bankName}\nเลขบัญชี: ${accountNumber}\nชื่อ: ${accountName}`, [
       { text: "ยกเลิก", style: "cancel" },
       { 
         text: "ยืนยัน", 
         onPress: async () => {
-          setIsProcessing(true); // 🟢 เริ่มหมุนโหลด (ตอนกดปุ่มยืนยัน)
+          setIsProcessing(true);
           try {
             const response = await withdrawBalance({ amount, bankName, accountNumber, accountName });
-
-            if (response && response.error) throw new Error(response.error);
-
-            setWithdrawAmount("");
-            setBankName("");
-            setAccountNumber("");
-            setAccountName("");
-            
-            Alert.alert("✅ สำเร็จ", "ส่งคำขอถอนเงินเรียบร้อย กรุณารอแอดมินดำเนินการโอนเงินครับ");
+            if (response?.error) throw new Error(response.error);
+            setWithdrawAmount(""); setBankName(""); setAccountNumber(""); setAccountName("");
+            Alert.alert("✅ สำเร็จ", "ส่งคำขอถอนเงินเรียบร้อย กรุณารอแอดมินดำเนินการ");
             await loadBalance();
-
           } catch (error) {
-            console.error(error);
-            Alert.alert("ข้อผิดพลาด", error.message || "ไม่สามารถทำรายการได้ในขณะนี้");
+            Alert.alert("ข้อผิดพลาด", error.message || "ไม่สามารถทำรายการได้");
           } finally {
-            setIsProcessing(false); // 🔴 หยุดหมุนโหลดเสมอ
+            setIsProcessing(false);
           }
         }
       }
@@ -134,102 +116,109 @@ export default function ProfileScreen({ navigation }) {
     ]);
   };
 
-  const displayName = user?.displayName || "Unknown";
+  const displayName = user?.displayName || "Loading...";
   const steamId = user?.steamId || "";
-  const avatar = user?.avatar || null;
+  const avatar = user?.avatar || null; 
   const isAdmin = user?.userType === "admin";
 
   return (
-    <SafeAreaView style={s.safe} edges={["top"]}>
-      <View style={s.header}>
-        <Text style={s.headerTitle}>Profile</Text>
-        <TouchableOpacity onPress={loadBalance}><Text>🔄</Text></TouchableOpacity>
-      </View>
-
-      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
-        {/* Profile Card & Balance (โค้ดเดิม) */}
-        <View style={s.profileCard}>
-          <View style={s.avatarBox}>
-            {avatar ? <Image source={{ uri: avatar }} style={s.avatarImg} /> : 
-            <View style={s.avatarPlaceholder}><Text style={s.avatarEmoji}>{isAdmin ? "🔧" : "🎯"}</Text></View>}
-            <View style={[s.levelBadge, isAdmin && { backgroundColor: "#ff9900" }]} />
-          </View>
-          <View style={s.profileInfo}>
-            <Text style={s.userName}>{displayName}</Text>
-            <View style={[s.userTypeBadge, isAdmin && { backgroundColor: "#ff990022" }]}>
-              <Text style={s.userTypeText}>{isAdmin ? "🔧 Dev Mode" : "🎮 Steam"}</Text>
+    <View style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+        
+        {/* --- Cover Header --- */}
+        <ImageBackground 
+          source={{ uri: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2070&auto=format&fit=crop' }} 
+          style={s.coverPhoto}
+        >
+          <SafeAreaView edges={["top"]}>
+            <View style={s.headerNav}>
+              <TouchableOpacity onPress={loadBalance} style={s.refreshBtn}>
+                <Text style={s.refreshText}>REFRESH 🔄</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={s.userId}>ID: {steamId ? steamId.slice(-6) : "------"}</Text>
-          </View>
-        </View>
+          </SafeAreaView>
+        </ImageBackground>
 
-        <View style={s.balanceCard}>
-          <View>
-            <Text style={s.balanceLabel}>💰 BALANCE จำนวนเงิน (Baht)</Text>
-            <Text style={s.balanceAmount}>฿ {balance.toLocaleString()}</Text>
-          </View>
-          <View style={s.balanceActions}>
-            <TouchableOpacity style={s.depositBtn} onPress={() => setDepositVisible(true)}>
-              <Text style={s.depositText}>+ เติมเงิน</Text>
+        {/* --- Profile Info --- */}
+        <View style={s.profileSection}>
+          <View style={s.avatarRow}>
+            <View style={s.avatarContainer}>
+              {/* Glow Layer */}
+              <LinearGradient 
+                colors={[isAdmin ? "#ff990066" : "#00ff8466", "transparent"]} 
+                style={s.avatarGlow} 
+              />
+              {/* Rounded Square Avatar */}
+              <View style={[s.avatarWrapper, isAdmin && { borderColor: "#ff9900" }]}>
+                {avatar ? (
+                  <Image source={{ uri: avatar }} style={s.avatarImage} />
+                ) : (
+                  <View style={s.avatarPlaceholder}><Text style={s.avatarInitial}>?</Text></View>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity style={s.editProfileBtn}>
+              <Text style={s.editProfileText}>EDIT PROFILE</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.withdrawBtn} onPress={() => setWithdrawVisible(true)}>
-              <Text style={s.withdrawText}>- ถอนเงิน</Text>
-            </TouchableOpacity>
+          </View>
+
+          <Text style={s.userName}>{displayName}</Text>
+          <View style={s.metaRow}>
+            <Text style={s.metaText}>STEAM ID: {steamId || "N/A"}</Text>
           </View>
         </View>
 
-        {/* Menu Items */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>ACCOUNT & ACTIVITY</Text>
-          <View style={s.menuCard}>
-            <MenuItem icon="🛒" label="Buy History" sublabel="ประวัติการซื้อ" onPress={() => navigation.navigate("BuyHistory")} />
-            <View style={s.divider} />
-            
-            {/* ✅ 1. เปลี่ยนให้ชี้ไปที่หน้า SaleHistory ที่เราเพิ่งสร้าง */}
-            <MenuItem icon="🚚" label="Sale History" sublabel="ประวัติการขาย & จัดส่งของ" accent onPress={() => navigation.navigate("SaleHistory")} />
-            <View style={s.divider} />
-            
-            {/* ✅ 2. (แถม) เพิ่มปุ่มสำหรับหน้าจัดการของที่วางขายแยกออกมาต่างหาก */}
-            <MenuItem icon="💸" label="Manage Listings" sublabel="จัดการของที่วางขาย" onPress={() => navigation.navigate("Sell")} />
-            <View style={s.divider} />
-            
-            <MenuItem icon="🔒" label="Security" sublabel="รหัสผ่าน & 2FA" onPress={() => navigation.navigate("Security")} />
+        {/* --- Wallet Section --- */}
+        <View style={s.contentSection}>
+          <Text style={s.sectionTitle}>WALLET</Text>
+          <View style={s.walletCard}>
+            <View>
+              <Text style={s.walletLabel}>CURRENT BALANCE</Text>
+              <Text style={s.walletAmount}>฿ {balance.toLocaleString()}</Text>
+            </View>
+            <View style={s.walletActions}>
+              <TouchableOpacity style={s.actionBtnMain} onPress={() => setDepositVisible(true)}>
+                <Text style={s.actionBtnTextMain}>DEPOSIT</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.actionBtnSub} onPress={() => setWithdrawVisible(true)}>
+                <Text style={s.actionBtnTextSub}>WITHDRAW</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        <View style={s.section}>
-          <View style={s.menuCard}>
-            <MenuItem icon="🚪" label="Logout" danger onPress={handleLogout} />
+        {/* --- General Grid Menu --- */}
+        <View style={s.contentSection}>
+          <Text style={s.sectionTitle}>GENERAL</Text>
+          <View style={s.menuGrid}>
+            <MenuButton label="BUY HISTORY" onPress={() => navigation.navigate("BuyHistory")} />
+            <MenuButton label="SALE HISTORY" onPress={() => navigation.navigate("SaleHistory")} />
+            <MenuButton label="MY LISTINGS" onPress={() => navigation.navigate("Sell")} />
+            <MenuButton label="SECURITY" onPress={() => navigation.navigate("Security")} />
           </View>
         </View>
+
+        {/* --- System Menu --- */}
+        <View style={s.contentSection}>
+          <Text style={s.sectionTitle}>SYSTEM</Text>
+          <View style={s.menuGrid}>
+            <MenuButton label="LOGOUT" isDanger onPress={handleLogout} />
+          </View>
+        </View>
+
+        <View style={{ height: 50 }} />
       </ScrollView>
 
       {/* --- Deposit Modal --- */}
       <Modal visible={depositVisible} transparent animationType="fade">
         <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Deposit / เติมเงิน</Text>
-            <TextInput
-              style={s.modalInput}
-              placeholder="กรอกจำนวนเงิน (฿)"
-              placeholderTextColor="#666"
-              keyboardType="numeric"
-              value={depositAmount}
-              onChangeText={setDepositAmount}
-              autoFocus
-            />
-            <View style={s.modalButtons}>
-              <TouchableOpacity onPress={() => { setDepositVisible(false); setDepositAmount(""); }} disabled={isProcessing}>
-                <Text style={s.btnCancel}>ยกเลิก</Text>
-              </TouchableOpacity>
-              
-              {/* 🟢 อัปเดตปุ่มยืนยันให้มี ActivityIndicator */}
-              <TouchableOpacity onPress={handleDeposit} disabled={isProcessing}>
-                {isProcessing ? (
-                  <ActivityIndicator color={colors.primary} />
-                ) : (
-                  <Text style={s.btnConfirm}>ยืนยัน</Text>
-                )}
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>DEPOSIT FUND</Text>
+            <CustomInput placeholder="Amount (฿)" value={depositAmount} onChangeText={setDepositAmount} isNumeric />
+            <View style={s.modalActionRow}>
+              <TouchableOpacity onPress={() => setDepositVisible(false)}><Text style={s.modalBtnCancel}>CANCEL</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleDeposit}>
+                {isProcessing ? <ActivityIndicator color="#00ff84" /> : <Text style={s.modalBtnConfirm}>CONFIRM</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -239,80 +228,79 @@ export default function ProfileScreen({ navigation }) {
       {/* --- Withdraw Modal --- */}
       <Modal visible={withdrawVisible} transparent animationType="fade">
         <View style={s.modalOverlay}>
-          <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Withdraw / ถอนเงิน</Text>
-            <Text style={s.modalSub}>ยอดเงินคงเหลือ: ฿{balance.toLocaleString()}</Text>
-            
-            <TextInput style={[s.modalInput, { marginBottom: 10 }]} placeholder="จำนวนเงิน (ขั้นต่ำ ฿100)" placeholderTextColor="#666" keyboardType="numeric" value={withdrawAmount} onChangeText={setWithdrawAmount} />
-            <TextInput style={[s.modalInput, { marginBottom: 10, fontSize: 14, textAlign: 'left' }]} placeholder="ธนาคาร / PromptPay" placeholderTextColor="#666" value={bankName} onChangeText={setBankName} />
-            <TextInput style={[s.modalInput, { marginBottom: 10, fontSize: 14, textAlign: 'left' }]} placeholder="เลขบัญชี / เบอร์โทร" placeholderTextColor="#666" keyboardType="numeric" value={accountNumber} onChangeText={setAccountNumber} />
-            <TextInput style={[s.modalInput, { fontSize: 14, textAlign: 'left' }]} placeholder="ชื่อบัญชีรับเงิน" placeholderTextColor="#666" value={accountName} onChangeText={setAccountName} />
-
-            <View style={s.modalButtons}>
-              <TouchableOpacity onPress={() => { setWithdrawVisible(false); }} disabled={isProcessing}>
-                <Text style={s.btnCancel}>ยกเลิก</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleWithdraw} disabled={isProcessing}>
-                <Text style={[s.btnConfirm, { color: colors.accentRed }]}>ยืนยันการถอน</Text>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>WITHDRAW FUND</Text>
+            <CustomInput placeholder="Amount" value={withdrawAmount} onChangeText={setWithdrawAmount} isNumeric />
+            <CustomInput placeholder="Bank Name" value={bankName} onChangeText={setBankName} />
+            <CustomInput placeholder="Account No." value={accountNumber} onChangeText={setAccountNumber} isNumeric />
+            <CustomInput placeholder="Account Name" value={accountName} onChangeText={setAccountName} />
+            <View style={s.modalActionRow}>
+              <TouchableOpacity onPress={() => setWithdrawVisible(false)}><Text style={s.modalBtnCancel}>CANCEL</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleWithdraw}>
+                {isProcessing ? <ActivityIndicator color="#ff453a" /> : <Text style={s.modalBtnDanger}>WITHDRAW</Text>}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
-// โค้ด Styles (s, ms) สามารถใช้ของเดิมต่อท้ายได้เลยครับ
-// ... ส่วน StyleSheet (s, ms) เอาไว้เหมือนเดิมเป๊ะๆ ครับ
-// (ผมละไว้เพื่อความกระชับ คุณสามารถใช้ของเก่าต่อท้ายได้เลย)
-
+// ==========================================
+// 4. STYLESHEETS
+// ==========================================
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.surface },
-  headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
-  scroll: { flex: 1 },
-  profileCard: { backgroundColor: colors.surfaceElevated, margin: 16, borderRadius: 16, padding: 20, flexDirection: "row", alignItems: "center", gap: 16 },
-  avatarBox: { position: "relative" },
-  avatarImg: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: colors.primary },
-  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.primary + "33", alignItems: "center", justifyContent: "center" },
-  avatarEmoji: { fontSize: 36 },
-  levelBadge: { position: "absolute", bottom: -4, right: -4, width: 18, height: 18, backgroundColor: colors.primary, borderRadius: 9, borderWidth: 2, borderColor: colors.background },
-  profileInfo: { flex: 1 },
-  userName: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
-  userTypeBadge: { backgroundColor: "#66c0f422", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, alignSelf: "flex-start", marginTop: 4 },
-  userTypeText: { fontSize: 11, fontWeight: "700", color: "#aabbcc" },
-  userId: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
-  balanceCard: { backgroundColor: colors.cardBg, marginHorizontal: 16, marginBottom: 16, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: colors.primary + "44", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  balanceLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
-  balanceAmount: { color: colors.primary, fontSize: 26, fontWeight: "900" },
-  balanceActions: { gap: 8 },
-  depositBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
-  depositText: { color: "#000", fontSize: 12, fontWeight: "900" },
-  withdrawBtn: { borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
-  withdrawText: { color: colors.textSecondary, fontSize: 12, fontWeight: "700" },
-  section: { paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { color: colors.textMuted, fontSize: 10, fontWeight: "800", marginBottom: 8 },
-  menuCard: { backgroundColor: colors.cardBg, borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border },
-  divider: { height: 1, backgroundColor: colors.border, marginLeft: 64 },
-  // Modal Styles
-  modalOverlay: { flex: 1, backgroundColor: "#000000aa", justifyContent: "center", alignItems: "center" },
-  modalContent: { width: "85%", backgroundColor: "#1a1a1a", padding: 24, borderRadius: 20, borderWidth: 1, borderColor: "#333" },
-  modalTitle: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 16 },
-  modalSub: { color: "#888", fontSize: 13, marginBottom: 10 },
-  modalInput: { backgroundColor: "#000", color: colors.primary, padding: 15, borderRadius: 12, fontSize: 18, fontWeight: "bold", textAlign: "center", borderWidth: 1, borderColor: "#444" },
-  modalButtons: { flexDirection: "row", justifyContent: "flex-end", marginTop: 20, gap: 24 },
-  btnCancel: { color: "#666", fontSize: 16, fontWeight: "600" },
-  btnConfirm: { color: colors.primary, fontSize: 16, fontWeight: "800" },
-});
+  container: { flex: 1, backgroundColor: "#000000" },
+  
+  coverPhoto: { width: "100%", height: 160 },
+  headerNav: { paddingHorizontal: 20, paddingTop: 10, alignItems: 'flex-end' },
+  refreshBtn: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 8 },
+  refreshText: { color: '#fff', fontSize: 10, fontWeight: '800' },
 
-const ms = StyleSheet.create({
-  item: { flexDirection: "row", alignItems: "center", paddingVertical: 14, paddingHorizontal: 14, gap: 12 },
-  iconBox: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
-  icon: { fontSize: 18 },
-  textBox: { flex: 1 },
-  label: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
-  sublabel: { color: colors.textMuted, fontSize: 11 },
-  arrow: { color: colors.textMuted, fontSize: 20 },
+  profileSection: { paddingHorizontal: 25, marginTop: -40, marginBottom: 25 },
+  avatarRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 15 },
+  avatarContainer: { position: 'relative', justifyContent: 'center', alignItems: 'center' },
+  avatarGlow: { position: 'absolute', width: 110, height: 110, borderRadius: 25 },
+  avatarWrapper: { width: 85, height: 85, borderRadius: 16, backgroundColor: "#1C1C1E", borderWidth: 2, borderColor: "#00ff84", overflow: "hidden" },
+  avatarImage: { width: "100%", height: "100%" },
+  avatarPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { color: '#fff', fontSize: 24 },
+  
+  editProfileBtn: { backgroundColor: "#1C1C1E", paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#2C2C2E" },
+  editProfileText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+
+  userName: { color: "#FFFFFF", fontSize: 22, fontWeight: "800", marginBottom: 5 },
+  metaRow: { marginBottom: 10 },
+  metaText: { color: "#8E8E93", fontSize: 11, fontWeight: "600", letterSpacing: 0.5 },
+
+  contentSection: { paddingHorizontal: 25, marginBottom: 25 },
+  sectionTitle: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", letterSpacing: 1.5, marginBottom: 15, opacity: 0.6 },
+
+  walletCard: { backgroundColor: "#1C1C1E", borderRadius: 16, padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderWidth: 1, borderColor: "#2C2C2E" },
+  walletLabel: { color: "#8E8E93", fontSize: 10, fontWeight: "700", marginBottom: 5 },
+  walletAmount: { color: "#00ff84", fontSize: 24, fontWeight: "900" },
+  walletActions: { gap: 8 },
+  actionBtnMain: { backgroundColor: "#FFFFFF", paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8 },
+  actionBtnTextMain: { color: "#000", fontSize: 11, fontWeight: "900" },
+  actionBtnSub: { borderWidth: 1, borderColor: "#333", paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8 },
+  actionBtnTextSub: { color: "#fff", fontSize: 11, fontWeight: "700" },
+
+  // Menu Grid
+  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 },
+  menuBtn: { width: '48%', height: 65, backgroundColor: "#1C1C1E", borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: "#2C2C2E" },
+  menuBtnDanger: { borderColor: "#421616", backgroundColor: "#260D0D" },
+  menuBtnLabel: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  menuBtnLabelDanger: { color: "#FF453A" },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", justifyContent: "center", alignItems: "center", padding: 25 },
+  modalBox: { width: "100%", backgroundColor: "#1C1C1E", padding: 25, borderRadius: 20, borderWidth: 1, borderColor: "#2C2C2E" },
+  modalTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginBottom: 20, textAlign: "center", letterSpacing: 1 },
+  inputField: { backgroundColor: "#000", color: "#fff", padding: 15, borderRadius: 12, fontSize: 14, borderWidth: 1, borderColor: "#333", marginBottom: 12 },
+  modalActionRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
+  modalBtnCancel: { color: "#8E8E93", fontSize: 14, fontWeight: "800" },
+  modalBtnConfirm: { color: "#00ff84", fontSize: 14, fontWeight: "900" },
+  modalBtnDanger: { color: "#FF453A", fontSize: 14, fontWeight: "900" },
 });
