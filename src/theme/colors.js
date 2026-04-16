@@ -1,44 +1,37 @@
 export const colors = {
-  // --- พื้นหลังและพื้นผิว (Background & Surfaces) ---
-  background: '#070B14',        // สีน้ำเงินเข้มเกือบดำ (Abyss Blue) ให้มิติความลึก
-  surface: '#101623',           // สีพื้นผิวหลักสำหรับการ์ดหรือคอนเทนเนอร์
-  surfaceElevated: '#1A2235',   // สีพื้นผิวที่ยกระดับขึ้นมา สำหรับไฮไลต์ข้อมูลสำคัญ
-  border: 'rgba(0, 229, 255, 0.2)',   // ขอบสี Electric Blue แบบโปร่งใส
-  borderLight: 'rgba(0, 229, 255, 0.4)', // ขอบสีสว่างสำหรับเน้น (Focus State)
+  background: '#0A0A0F',
+  surface: '#12121A',
+  surfaceElevated: '#1A1A26',
+  border: '#2A2A3A',
+  borderLight: '#3A3A4A',
 
-  // --- สีหลัก (Primary Colors) ---
-  primary: '#00E5FF',           // สีฟ้า Electric Blue (Neon Cyan)
-  primaryDark: '#00B3CC',       // สีฟ้าเข้ม สำหรับสถานะการกด (Active/Pressed)
-  primaryLight: '#66FFFF',      // สีฟ้าสว่าง สำหรับเอฟเฟกต์เรืองแสง (Glow Effect)
+  primary: '#E8A020',
+  primaryDark: '#B87D10',
+  primaryLight: '#FFB830',
 
-  // --- สีรองและสถานะ (Accents & Status) ---
-  accent: '#FF0055',            // สีชมพูอมแดง (Neon Pink/Red) ตัดกับสีฟ้าได้อย่างลงตัว
-  accentGreen: '#00FF66',       // สีเขียวสะท้อนแสง สำหรับสถานะออนไลน์/สำเร็จ
-  accentRed: '#FF0055',         // แจ้งเตือนข้อผิดพลาด
-  accentPurple: '#D500F9',      // สีม่วง Neon
-  accentBlue: '#2979FF',
+  accent: '#4FC3F7',
+  accentGreen: '#4CAF50',
+  accentRed: '#F44336',
+  accentPurple: '#9C27B0',
+  accentBlue: '#2196F3',
 
-  // --- สีข้อความ (Typography) ---
-  textPrimary: '#FFFFFF',       // ขาวบริสุทธิ์ สำหรับหัวข้อและตัวเลขราคา
-  textSecondary: '#A0AABF',     // สีเทาอมฟ้าสว่าง สำหรับข้อความรายละเอียด
-  textMuted: '#5C677D',         // สีเทาเข้ม สำหรับข้อมูลรองหรือปุ่มที่ไม่ได้ใช้งาน
+  textPrimary: '#FFFFFF',
+  textSecondary: '#9E9EAE',
+  textMuted: '#5A5A7A',
 
-  // --- สีระดับความหายากของไอเทม (ปรับความสว่างให้เข้ากับ Dark Theme) ---
-  rarityConsumer: '#828C9E',    
-  rarityIndustrial: '#4A90E2',  
-  rarityMilSpec: '#00E5FF',     
-  rarityRestricted: '#B142F5',  
-  rarityClassified: '#E53935',  
-  rarityCovert: '#FF0055',      
-  rarityGold: '#FFD700',        
+  rarityConsumer: '#B0C3D9',
+  rarityIndustrial: '#5E98D9',
+  rarityMilSpec: '#4B69FF',
+  rarityRestricted: '#8847FF',
+  rarityClassified: '#D32CE6',
+  rarityCovert: '#EB4B4B',
+  rarityGold: '#E4AE33',
 
-  // --- UI Elements Specifics ---
-  liveBadge: '#FF0055',         
-  tabActive: '#00E5FF',         
-  tabInactive: '#5C677D',       
+  liveBadge: '#F44336',
+  tabActive: '#E8A020',
+  tabInactive: '#5A5A7A',
 
-  // --- เลเยอร์ซ้อนทับ (Overlays) ---
-  cardBg: 'rgba(16, 22, 35, 0.8)',       // พื้นหลังการ์ดโปร่งแสงเล็กน้อย
-  overlayDark: 'rgba(7, 11, 20, 0.85)',  // พื้นหลังเวลาเปิด Modal (Dim Background)
-  overlayLight: 'rgba(0, 229, 255, 0.1)', // ไฮไลต์แสงตกกระทบ
+  cardBg: '#161622',
+  overlayDark: 'rgba(0,0,0,0.7)',
+  overlayLight: 'rgba(255,255,255,0.05)',
 };
