@@ -1,259 +1,251 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { formatPrice } from '../data/items';
 
-const WEAR_SHORT = {
-  'Factory New': 'FN',
-  'Minimal Wear': 'MW',
-  'Field-Tested': 'FT',
-  'Well-Worn': 'WW',
-  'Battle-Scarred': 'BS',
-};
+export default function ItemCard({ item, onPress, compact = false }) {
+  // 1. ป้องกัน Rarity Color ว่าง
+  const rarityColor = item?.rarityColor || colors?.rarityMilSpec || '#00E5FF';
+  
+  // 2. จัดการเรื่องราคาให้ปลอดภัย (Fallback เป็น 0 เสมอ)
+  const safePrice = item?.price || item?.basePrice || 0;
 
-export default function ItemCard({ item, onPress, compact = false, showBuyBtn = false, onBuy }) {
+  // --- สไตล์แบบการ์ดเล็ก (Recently Viewed) ---
   if (compact) {
     return (
       <TouchableOpacity style={styles.compactCard} onPress={onPress} activeOpacity={0.8}>
-        <View style={[styles.rarityBar, { backgroundColor: item.rarityColor }]} />
         <View style={styles.compactImageBox}>
-          <Image
-            source={{ uri: item.image }}
-            style={styles.compactImage}
-            resizeMode="contain"
-            defaultSource={{ uri: 'https://via.placeholder.com/80x50/1A1A26/444?text=...' }}
-          />
-          {item.stattrak && (
-            <View style={styles.stBadge}>
-              <Text style={styles.stText}>ST</Text>
-            </View>
-          )}
+          {/* เลเยอร์ 1: Glow ชั้นใน (Tighter Bloom) */}
+          <View style={[styles.compactImageGlowInner, { backgroundColor: rarityColor, shadowColor: rarityColor }]} />
+          {/* เลเยอร์ 2: Glow ชั้นนอก (Softer Halo) */}
+          <View style={[styles.compactImageGlowOuter, { backgroundColor: rarityColor, shadowColor: rarityColor }]} />
+          <Image source={{ uri: item?.image }} style={styles.compactImage} resizeMode="contain" />
         </View>
         <View style={styles.compactInfo}>
-          <Text style={styles.compactWeapon} numberOfLines={1}>{item.weapon}</Text>
-          <Text style={styles.compactSkin} numberOfLines={1}>{item.skin}</Text>
-          {item.wear && (
-            <View style={styles.wearRow}>
-              <View style={[styles.wearDot, { backgroundColor: item.rarityColor }]} />
-              <Text style={styles.wearText}>{WEAR_SHORT[item.wear] || item.wear}</Text>
-            </View>
-          )}
-          <Text style={styles.compactPrice}>{formatPrice(item.price)}</Text>
+          <Text style={styles.compactSkin} numberOfLines={1}>{item?.skin || 'Unknown Skin'}</Text>
+          <Text style={styles.compactPrice}>{formatPrice(safePrice)}</Text>
         </View>
+        <View style={[styles.bottomRarityLine, { backgroundColor: rarityColor }]} />
       </TouchableOpacity>
     );
   }
 
+  // --- สไตล์แบบการ์ดหลัก (Grid) ---
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.topRarityBar, { backgroundColor: item.rarityColor }]} />
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageBox}>
-        <Image
-          source={{ uri: item.image }}
-          style={styles.image}
-          resizeMode="contain"
-          defaultSource={{ uri: 'https://via.placeholder.com/120x80/1A1A26/444?text=...' }}
-        />
-        <View style={styles.badgeRow}>
-          {item.stattrak && (
-            <View style={styles.stBadge}>
-              <Text style={styles.stText}>StatTrak™</Text>
-            </View>
-          )}
-          {item.souvenir && (
-            <View style={[styles.stBadge, { backgroundColor: '#E4AE33' }]}>
-              <Text style={[styles.stText, { color: '#000' }]}>Souvenir</Text>
-            </View>
-          )}
-          {item.tradeLock && (
-            <View style={[styles.stBadge, { backgroundColor: colors.accentRed }]}>
-              <Text style={styles.stText}>🔒</Text>
-            </View>
-          )}
-        </View>
+        {/* เลเยอร์ 1: Glow ชั้นใน (Tighter Bloom) */}
+        <View style={[styles.mainImageGlowInner, { backgroundColor: rarityColor, shadowColor: rarityColor }]} />
+        {/* เลเยอร์ 2: Glow ชั้นนอก (Softer Halo) */}
+        <View style={[styles.mainImageGlowOuter, { backgroundColor: rarityColor, shadowColor: rarityColor }]} />
+        <Image source={{ uri: item?.image }} style={styles.image} resizeMode="contain" />
+        
+        {item?.stattrak && (
+          <View style={styles.stBadge}>
+            <Text style={styles.stText}>STATTRAK™</Text>
+          </View>
+        )}
       </View>
+
       <View style={styles.info}>
-        <Text style={styles.weapon} numberOfLines={1}>{item.weapon}</Text>
-        <Text style={styles.skin} numberOfLines={1}>{item.skin}</Text>
-        <View style={styles.detailRow}>
-          {item.wear && <Text style={styles.wear}>{WEAR_SHORT[item.wear] || item.wear}</Text>}
-          {item.float && <Text style={styles.float}>{item.float.toFixed(4)}</Text>}
-        </View>
-        <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatPrice(item.price)}</Text>
-          {showBuyBtn && (
-            <TouchableOpacity
-              style={styles.buyBtn}
-              onPress={(e) => { e.stopPropagation(); onBuy && onBuy(item); }}
-            >
-              <Text style={styles.buyText}>BUY</Text>
-            </TouchableOpacity>
-          )}
+        <Text style={styles.weaponName}>{item?.weapon || 'Weapon'}</Text>
+        <Text style={styles.skinName} numberOfLines={1}>{item?.skin || 'Standard'}</Text>
+        
+        <View style={styles.footer}>
+          <View style={styles.wearBadge}>
+            <Text style={styles.wearText}>{item?.wear || 'FN'}</Text>
+          </View>
+          <Text style={styles.priceText}>{formatPrice(safePrice)}</Text>
         </View>
       </View>
+      
+      <View style={[styles.bottomRarityLine, { 
+        backgroundColor: rarityColor, 
+        shadowColor: rarityColor, 
+        shadowOpacity: 0.6, 
+        shadowRadius: 4,
+        elevation: 5
+      }]} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 16,
+    margin: 6,
     flex: 1,
-    margin: 4,
-  },
-  topRarityBar: {
-    height: 3,
-    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+      },
+      android: { elevation: 4 },
+    }),
   },
   imageBox: {
-    backgroundColor: colors.surfaceElevated,
-    height: 100,
+    height: 125,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    position: 'relative',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  badgeRow: {
+  
+  // --- การจัดแสงโกลว์หลัก (Grid) ---
+  mainImageGlowInner: {
     position: 'absolute',
-    top: 6,
-    left: 6,
-    flexDirection: 'column',
-    gap: 2,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    opacity: 0.3, // สว่างขึ้นกว่าเดิมเพื่อทำ Bloom
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20, // กระจายแสงให้ดูนุ่มนวล
+    elevation: 8,
   },
-  stBadge: {
-    backgroundColor: '#CF6A32',
-    borderRadius: 3,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    marginBottom: 2,
+  mainImageGlowOuter: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    opacity: 0.1, // นุ่มนวลทะลุกระจก
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 35, // กระจายแสงกว้างๆ
+    elevation: 10,
   },
-  stText: {
-    color: '#fff',
-    fontSize: 8,
-    fontWeight: '700',
+  
+  image: {
+    width: '85%',
+    height: '85%',
+    zIndex: 2,
   },
   info: {
-    padding: 8,
+    padding: 12,
+    backgroundColor: 'rgba(16, 22, 35, 0.4)',
   },
-  weapon: {
+  weaponName: {
+    fontFamily: 'Rajdhani_500Medium',
     color: colors.textSecondary,
     fontSize: 10,
-    fontWeight: '600',
-    marginBottom: 1,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
-  skin: {
+  skinName: {
+    fontFamily: 'Rajdhani_700Bold',
     color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 15,
+    fontStyle: 'italic',
+    marginVertical: 2,
+    letterSpacing: 0.5,
   },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  wear: {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontWeight: '600',
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 3,
-  },
-  float: {
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  priceRow: {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 6,
   },
-  price: {
+  priceText: {
+    fontFamily: 'Rajdhani_700Bold',
     color: colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 17,
+    fontStyle: 'italic',
   },
-  buyBtn: {
-    backgroundColor: colors.primary,
+  wearBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  buyText: {
-    color: '#000',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-
-  // Compact styles
-  compactCard: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 8,
-    width: 130,
-    marginRight: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rarityBar: {
-    height: 2,
-    width: '100%',
-  },
-  compactImageBox: {
-    backgroundColor: colors.surfaceElevated,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 6,
-    position: 'relative',
-  },
-  compactImage: {
-    width: '100%',
-    height: '100%',
-  },
-  compactInfo: {
-    padding: 6,
-  },
-  compactWeapon: {
-    color: colors.textMuted,
-    fontSize: 9,
-    fontWeight: '600',
-    marginBottom: 1,
-  },
-  compactSkin: {
-    color: colors.textPrimary,
-    fontSize: 11,
-    fontWeight: '700',
-    marginBottom: 3,
-  },
-  wearRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-  wearDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    marginRight: 4,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   wearText: {
-    color: colors.textMuted,
+    fontFamily: 'Rajdhani_600SemiBold',
+    color: colors.textSecondary,
     fontSize: 9,
-    fontWeight: '600',
+  },
+  stBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(207, 106, 50, 0.85)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 5,
+  },
+  stText: {
+    fontFamily: 'Rajdhani_700Bold',
+    color: '#FFF',
+    fontSize: 8,
+  },
+  compactCard: {
+    width: 145,
+    borderRadius: 14,
+    marginRight: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+  },
+  compactImageBox: {
+    height: 85,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  },
+  
+  // --- การจัดแสงโกลว์ (Compact) ---
+  compactImageGlowInner: {
+    position: 'absolute',
+    width: 45,
+    height: 45,
+    borderRadius: 22,
+    opacity: 0.3,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 10,
+  },
+  compactImageGlowOuter: {
+    position: 'absolute',
+    width: 65,
+    height: 65,
+    borderRadius: 32,
+    opacity: 0.1,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+  },
+  
+  compactImage: {
+    width: '80%',
+    height: '80%',
+    zIndex: 2,
+  },
+  compactInfo: {
+    padding: 10,
+    backgroundColor: 'rgba(16, 22, 35, 0.4)',
+  },
+  compactSkin: {
+    fontFamily: 'Rajdhani_700Bold',
+    color: colors.textPrimary,
+    fontSize: 12,
   },
   compactPrice: {
+    fontFamily: 'Rajdhani_700Bold',
     color: colors.primary,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  bottomRarityLine: {
+    height: 2.5,
+    width: '100%',
   },
 });

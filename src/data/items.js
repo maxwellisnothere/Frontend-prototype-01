@@ -265,16 +265,37 @@ export const items = [
   },
 ];
 
-export const inventoryItems = items.filter(i => i.inInventory);
+export const inventoryItems = items.filter(i => i?.inInventory);
 export const storeItems = items;
-export const popularItems = items.filter(i => i.popular);
-export const bestSellingItems = items.filter(i => i.bestSelling);
-export const recommendedItems = items.filter(i => i.recommended);
+export const popularItems = items.filter(i => i?.popular);
+export const bestSellingItems = items.filter(i => i?.bestSelling);
+export const recommendedItems = items.filter(i => i?.recommended);
 
+/**
+ * ฟังก์ชันจัดฟอร์แมตราคาให้ปลอดภัย (Fix: TypeError toLocaleString of undefined)
+ * @param {number|string} price - ราคาที่ต้องการจัดฟอร์แมต
+ */
 export const formatPrice = (price) => {
-  return price.toLocaleString('th-TH') + ' ฿';
+  // ตรวจสอบว่าเป็นตัวเลขที่ใช้งานได้จริงไหม ถ้าไม่ใช่ให้ใช้ 0 แทน (Fallback)
+  const safeValue = Number(price) || 0;
+  
+  // ใช้ Intl.NumberFormat เพื่อความแม่นยำและรองรับมาตรฐานสากล
+  return '฿' + safeValue.toLocaleString('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 };
 
+/**
+ * คำนวณมูลค่ารวมของรายการไอเทม
+ * @param {Array} itemList - รายการไอเทม
+ */
 export const getTotalValue = (itemList) => {
-  return itemList.reduce((sum, item) => sum + item.price, 0);
+  if (!Array.isArray(itemList)) return 0;
+  
+  return itemList.reduce((sum, item) => {
+    // ป้องกันกรณี item.price เป็น undefined
+    const price = Number(item?.price) || 0;
+    return sum + price;
+  }, 0);
 };
