@@ -193,7 +193,7 @@ export default function ProfileScreen({ navigation }) {
           <View style={s.menuGrid}>
             <MenuButton label="BUY HISTORY" onPress={() => navigation.navigate("BuyHistory")} />
             <MenuButton label="SALE HISTORY" onPress={() => navigation.navigate("SaleHistory")} />
-            <MenuButton label="MY LISTINGS" onPress={() => navigation.navigate("Sell")} />
+            <MenuButton label="MY LISTINGS" onPress={() => navigation.navigate("MyListings")} />
             <MenuButton label="SECURITY" onPress={() => navigation.navigate("Security")} />
           </View>
         </View>

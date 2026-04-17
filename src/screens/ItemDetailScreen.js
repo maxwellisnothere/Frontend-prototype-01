@@ -1,48 +1,54 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, Image, Animated, Alert, ActivityIndicator
+  Dimensions, Image, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { LineChart } from 'react-native-gifted-charts'; // เพิ่ม Import ตรงนี้
 import { colors } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://defuse-th-backend-main.onrender.com';
 
-// ✅ ฟังก์ชัน format ราคาใหม่ รองรับทศนิยม 2 ตำแหน่ง
 const formatPriceDetailed = (price) => {
   if (price == null) return "฿0.00";
   return `฿${price.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-// Float bar แสดง wear condition
+// ==========================================
+// 1. HELPER COMPONENTS
+// ==========================================
+
 const FloatBar = ({ float }) => {
   if (!float) return null;
   const pct = float * 100;
   const ZONES = [
-    { label: 'FN', end: 7, color: '#4CAF50' },
-    { label: 'MW', end: 15, color: '#8BC34A' },
-    { label: 'FT', end: 38, color: '#FFC107' },
-    { label: 'WW', end: 45, color: '#FF9800' },
-    { label: 'BS', end: 100, color: '#F44336' },
+    { label: 'FN', end: 7, color: '#4ade80' },
+    { label: 'MW', end: 15, color: '#a3e635' },
+    { label: 'FT', end: 38, color: '#facc15' },
+    { label: 'WW', end: 45, color: '#fb923c' },
+    { label: 'BS', end: 100, color: '#f87171' },
   ];
   const getColor = (f) => {
     const p = f * 100;
-    if (p < 7) return '#4CAF50';
-    if (p < 15) return '#8BC34A';
-    if (p < 38) return '#FFC107';
-    if (p < 45) return '#FF9800';
-    return '#F44336';
+    if (p < 7) return '#4ade80';
+    if (p < 15) return '#a3e635';
+    if (p < 38) return '#facc15';
+    if (p < 45) return '#fb923c';
+    return '#f87171';
   };
 
   return (
     <View style={fbStyles.container}>
       <View style={fbStyles.barBg}>
-        <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#4CAF50' }]} />
-        <View style={[fbStyles.zone, { width: '8%', backgroundColor: '#8BC34A' }]} />
-        <View style={[fbStyles.zone, { width: '23%', backgroundColor: '#FFC107' }]} />
-        <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#FF9800' }]} />
-        <View style={[fbStyles.zone, { width: '55%', backgroundColor: '#F44336' }]} />
+        <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#4ade80' }]} />
+        <View style={[fbStyles.zone, { width: '8%', backgroundColor: '#a3e635' }]} />
+        <View style={[fbStyles.zone, { width: '23%', backgroundColor: '#facc15' }]} />
+        <View style={[fbStyles.zone, { width: '7%', backgroundColor: '#fb923c' }]} />
+        <View style={[fbStyles.zone, { width: '55%', backgroundColor: '#f87171' }]} />
         <View style={[fbStyles.indicator, { left: `${pct}%`, borderColor: getColor(float) }]} />
       </View>
       <View style={fbStyles.labels}>
@@ -56,83 +62,89 @@ const FloatBar = ({ float }) => {
 
 const fbStyles = StyleSheet.create({
   container: { marginBottom: 12 },
-  barBg: {
-    height: 8, borderRadius: 4,
-    flexDirection: 'row', overflow: 'visible',
-    position: 'relative', marginBottom: 4,
-  },
-  zone: { height: 8 },
-  indicator: {
-    position: 'absolute', top: -4,
-    width: 16, height: 16, borderRadius: 8,
-    backgroundColor: colors.background,
-    borderWidth: 2,
-    marginLeft: -8,
-  },
+  barBg: { height: 6, borderRadius: 3, flexDirection: 'row', position: 'relative', marginBottom: 6, overflow: 'hidden' },
+  zone: { height: 6 },
+  indicator: { position: 'absolute', top: -3, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.background, borderWidth: 2, marginLeft: -6 },
   labels: { flexDirection: 'row', justifyContent: 'space-between' },
-  zoneLabel: { fontSize: 9, fontWeight: '700' },
+  zoneLabel: { fontFamily: 'Rajdhani_700Bold', fontSize: 10 },
 });
 
-// Price history mini chart
-const MiniChart = ({ data }) => {
-  const H = 80;
-  const W = width - 64;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const points = data.map((v, i) => ({
-    x: (i / (data.length - 1)) * W,
-    y: H - ((v - min) / range) * H,
-  }));
+// กราฟใหม่ที่รองรับการเลื่อนและมี Tooltip
+const InteractiveChart = ({ data }) => {
+  if (!data || data.length === 0) return null;
 
+  const maxValue = Math.max(...data.map(d => d.value));
+  
   return (
-    <View style={{ height: H + 20, position: 'relative', marginBottom: 8 }}>
-      {[0, 0.5, 1].map(r => (
-        <View key={r} style={{
-          position: 'absolute', left: 0, right: 0,
-          top: r * H, height: 1,
-          backgroundColor: colors.border,
-        }} />
-      ))}
-      {points.map((p, i) => (
-        <View key={i} style={{
-          position: 'absolute',
-          left: p.x - 3, top: p.y - 3,
-          width: 6, height: 6, borderRadius: 3,
-          backgroundColor: colors.accent,
-        }} />
-      ))}
-      {points.slice(0, -1).map((p, i) => {
-        const next = points[i + 1];
-        const dx = next.x - p.x;
-        const dy = next.y - p.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-        return (
-          <View key={`l${i}`} style={{
-            position: 'absolute',
-            left: p.x, top: p.y,
-            width: len, height: 1.5,
-            backgroundColor: colors.accent + 'AA',
-            transformOrigin: 'left',
-            transform: [{ rotate: `${angle}deg` }],
-          }} />
-        );
-      })}
-      <Text style={{ position: 'absolute', left: 0, top: H + 4, color: colors.textMuted, fontSize: 9 }}>
-        {formatPriceDetailed(min)}
-      </Text>
-      <Text style={{ position: 'absolute', right: 0, top: H + 4, color: colors.textMuted, fontSize: 9 }}>
-        {formatPriceDetailed(max)}
-      </Text>
+    <View style={{ marginTop: 10, marginLeft: -10 }}>
+      <LineChart
+        areaChart
+        data={data}
+        width={width - 80}
+        height={180}
+        thickness={2}
+        color={colors.primary}
+        startFillColor={colors.primary}
+        endFillColor={colors.primary}
+        startOpacity={0.4}
+        endOpacity={0.02}
+        initialSpacing={10}
+        noOfSections={4}
+        maxValue={maxValue * 1.2} 
+        yAxisColor="transparent"
+        yAxisThickness={0}
+        rulesType="dashed"
+        rulesColor="rgba(255,255,255,0.1)"
+        yAxisTextStyle={{ color: colors.textMuted, fontSize: 10, fontFamily: 'Rajdhani_600SemiBold' }}
+        xAxisColor="transparent"
+        xAxisLabelTextStyle={{ color: colors.textMuted, fontSize: 10, fontFamily: 'Rajdhani_600SemiBold', rotation: 45 }}
+        hideDataPoints={true} 
+        pointerConfig={{
+          pointerStripHeight: 180,
+          pointerStripColor: 'rgba(255,255,255,0.5)',
+          pointerStripWidth: 1,
+          pointerStripUptoDataPoint: true,
+          strokeDashArray: [4, 4],
+          pointerColor: '#fff',
+          radius: 4,
+          pointerLabelWidth: 100,
+          pointerLabelHeight: 50,
+          activatePointersOnLongPress: false,
+          autoAdjustPointerLabelPosition: true,
+          pointerLabelComponent: (items) => {
+            if (!items || !items[0]) return null;
+            return (
+              <View style={{
+                backgroundColor: '#FFF',
+                paddingVertical: 6,
+                paddingHorizontal: 10,
+                borderRadius: 16, // ขอบมนๆ แบบในรูป
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}>
+                <Text style={{ color: '#666', fontSize: 10, fontFamily: 'Rajdhani_600SemiBold', marginBottom: 2 }}>
+                  {items[0].dateLabel}
+                </Text>
+                <Text style={{ color: '#000', fontSize: 12, fontFamily: 'Rajdhani_700Bold' }}>
+                  {formatPriceDetailed(items[0].value)}
+                </Text>
+              </View>
+            );
+          },
+        }}
+      />
     </View>
   );
 };
 
-// Buy Order row
 const BuyOrderRow = ({ price, qty, isHighest }) => (
   <View style={[boStyles.row, isHighest && boStyles.rowHighlight]}>
-    <Text style={[boStyles.price, isHighest && { color: colors.accentGreen }]}>{formatPriceDetailed(price)}</Text>
+    <Text style={[boStyles.price, isHighest && { color: colors.primary }]}>{formatPriceDetailed(price)}</Text>
     <View style={boStyles.qtyBox}>
       <Text style={boStyles.qty}>{qty}</Text>
     </View>
@@ -140,88 +152,48 @@ const BuyOrderRow = ({ price, qty, isHighest }) => (
 );
 
 const boStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  rowHighlight: { backgroundColor: colors.accentGreen + '0A' },
-  price: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
-  qtyBox: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3,
-  },
-  qty: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  rowHighlight: { backgroundColor: 'rgba(236, 100, 108, 0.1)' },
+  price: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 14 },
+  qtyBox: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)' },
+  qty: { color: colors.textSecondary, fontFamily: 'Rajdhani_700Bold', fontSize: 12 },
 });
 
-// Sticker chip
-const StickerChip = ({ name, wear }) => (
-  <View style={stickerStyles.chip}>
-    <Text style={stickerStyles.icon}>🔰</Text>
-    <Text style={stickerStyles.name} numberOfLines={1}>{name}</Text>
-    {wear && <Text style={stickerStyles.wear}>{(wear * 100).toFixed(0)}%</Text>}
-  </View>
-);
-
-const stickerStyles = StyleSheet.create({
-  chip: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: colors.border,
-    marginRight: 8, marginBottom: 8, gap: 6,
-  },
-  icon: { fontSize: 14 },
-  name: { color: colors.textSecondary, fontSize: 11, fontWeight: '600', maxWidth: 80 },
-  wear: { color: colors.textMuted, fontSize: 10 },
-});
-
-// Tab selector
 const TabBar = ({ tabs, active, onSelect }) => (
   <View style={tbStyles.row}>
     {tabs.map(t => (
-      <TouchableOpacity
-        key={t} style={[tbStyles.tab, active === t && tbStyles.tabActive]}
-        onPress={() => onSelect(t)}
-      >
-        <Text style={[tbStyles.label, active === t && tbStyles.labelActive]}>{t}</Text>
+      <TouchableOpacity key={t} style={[tbStyles.tab, active === t && tbStyles.tabActive]} onPress={() => onSelect(t)}>
+        <Text style={[tbStyles.label, active === t && tbStyles.labelActive]}>{t.toUpperCase()}</Text>
       </TouchableOpacity>
     ))}
   </View>
 );
 
 const tbStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 3,
-  },
-  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-  tabActive: { backgroundColor: colors.surfaceElevated },
-  label: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  labelActive: { color: colors.textPrimary, fontWeight: '800' },
+  row: { flexDirection: 'row', backgroundColor: 'rgba(7,11,20,0.4)', borderRadius: 12, padding: 4, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.05)' },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  tabActive: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  label: { color: colors.textMuted, fontFamily: 'Rajdhani_600SemiBold', fontSize: 11, letterSpacing: 1 },
+  labelActive: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold' },
 });
 
-// ── MAIN SCREEN ──────────────────────────────────────────────────────────────
+// ==========================================
+// 2. MAIN SCREEN
+// ==========================================
+
 export default function ItemDetailScreen({ route, navigation }) {
   const { item } = route.params || {};
 
   const [chartTab, setChartTab] = useState('1M');
   const [infoTab, setInfoTab] = useState('Buy Orders');
-
-  // ✅ State สำหรับโหลดราคา Live
   const [livePrice, setLivePrice] = useState(null);
   const [liveUsd, setLiveUsd] = useState(null);
+  const [marketVolume, setMarketVolume] = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
 
-  // ดึงชื่อไอเทมให้ตรงกับของ Steam
-  const itemName = item?.wear
-    ? `${item?.weapon} | ${item?.skin} (${item?.wear})`
-    : item?.name || '';
+  const itemName = item?.wear ? `${item?.weapon} | ${item?.skin} (${item?.wear})` : item?.name || '';
+  const rarityColor = item?.rarityColor || colors.rarityMilSpec;
 
-  // โหลดราคาทันทีที่เปิดหน้า Detail
   useEffect(() => {
     if (!itemName) return;
     const loadPrice = async () => {
@@ -232,6 +204,7 @@ export default function ItemDetailScreen({ route, navigation }) {
         if (json.success && json.thb > 0) {
           setLivePrice(json.thb);
           setLiveUsd(json.usd);
+          setMarketVolume(Math.floor(Math.random() * 500) + 50);
         }
       } catch (err) {
         console.log("❌ Detail price error:", err);
@@ -242,493 +215,289 @@ export default function ItemDetailScreen({ route, navigation }) {
     loadPrice();
   }, [itemName]);
 
-  if (!item) {
-    return (
-      <SafeAreaView style={s.safe} edges={['top']}>
-        <Text style={{ color: '#fff', margin: 20 }}>Item not found</Text>
-      </SafeAreaView>
-    );
-  }
+  if (!item) return <SafeAreaView style={s.safe}><Text style={{ color: '#fff', margin: 20 }}>Item not found</Text></SafeAreaView>;
 
-  // ✅ ใช้ราคา Live (ถ้าโหลดมาแล้ว) ถ้ายังให้ใช้ราคาตั้งต้นไปก่อน
   const displayPrice = livePrice !== null ? livePrice : (item.price || 0);
   const displayUsd = liveUsd !== null ? liveUsd : ((item.price || 0) / 35);
+  const displayVolume = marketVolume || 124;
 
-  // อัปเดตกราฟและข้อมูลจำลองให้ใช้ displayPrice
+  // จำลองข้อมูลแกนเวลาสำหรับกราฟ
+  const generateChartData = (prices, interval) => {
+    const dataPoints = [];
+    // กระจายจุดข้อมูลให้เป็นเส้นกราฟที่ดูมีมิติขึ้น (แทรกค่ากลาง)
+    const expandedPrices = [];
+    for (let i = 0; i < prices.length - 1; i++) {
+      expandedPrices.push(prices[i]);
+      expandedPrices.push((prices[i] + prices[i+1]) / 2 + (Math.random() * 100 - 50)); // สุ่มแกว่งนิดหน่อย
+    }
+    expandedPrices.push(prices[prices.length - 1]);
+
+    return expandedPrices.map((price, index) => {
+      const date = new Date();
+      // ย้อนเวลาตาม index
+      const dayOffset = interval === '1M' ? 1 : interval === '3M' ? 3 : interval === '1Y' ? 15 : 30;
+      date.setDate(date.getDate() - (expandedPrices.length - 1 - index) * dayOffset);
+      
+      const day = date.getDate().toString().padStart(2, '0');
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const month = monthNames[date.getMonth()];
+      const year = date.getFullYear();
+
+      return {
+        value: Math.max(0, price), // ป้องกันค่าติดลบ
+        label: index % 4 === 0 ? `${day} ${month}` : '', // แสดง label แกน X ห่างๆ กันจะได้ไม่ชน
+        dateLabel: `${day} ${month} ${year}` // แสดงใน Tooltip
+      };
+    });
+  };
+
   const priceHistory = {
-    '1M': [displayPrice * 1.3, displayPrice * 1.25, displayPrice * 1.18, displayPrice * 1.1, displayPrice * 1.05, displayPrice],
-    '3M': [displayPrice * 1.5, displayPrice * 1.4, displayPrice * 1.3, displayPrice * 1.2, displayPrice * 1.1, displayPrice],
-    '1Y': [displayPrice * 2, displayPrice * 1.8, displayPrice * 1.6, displayPrice * 1.3, displayPrice * 1.1, displayPrice],
-    'ALL': [displayPrice * 3, displayPrice * 2.5, displayPrice * 2, displayPrice * 1.5, displayPrice * 1.2, displayPrice],
+    '1M': generateChartData([displayPrice * 0.8, displayPrice * 0.9, displayPrice * 1.1, displayPrice * 1.05, displayPrice * 1.12, displayPrice], '1M'),
+    '3M': generateChartData([displayPrice * 0.6, displayPrice * 0.7, displayPrice * 0.9, displayPrice * 1.2, displayPrice * 1.1, displayPrice], '3M'),
+    '1Y': generateChartData([displayPrice * 0.4, displayPrice * 0.5, displayPrice * 0.8, displayPrice * 1.3, displayPrice * 1.1, displayPrice], '1Y'),
+    'ALL': generateChartData([displayPrice * 0.2, displayPrice * 0.4, displayPrice * 0.9, displayPrice * 1.5, displayPrice * 1.2, displayPrice], 'ALL'),
   };
 
   const buyOrders = [
-    { price: displayPrice * 0.97, qty: 1 },
-    { price: displayPrice * 0.93, qty: 1 },
-    { price: displayPrice * 0.88, qty: 1 },
-    { price: displayPrice * 0.82, qty: 2 },
-    { price: displayPrice * 0.75, qty: 1 },
-    { price: displayPrice * 0.65, qty: 3 },
-    { price: displayPrice * 0.50, qty: 6 },
+    { price: displayPrice * 0.97, qty: 1 }, { price: displayPrice * 0.93, qty: 1 },
+    { price: displayPrice * 0.88, qty: 2 }, { price: displayPrice * 0.82, qty: 5 },
   ];
 
   const latestSales = [
-    { price: displayPrice, float: item.float, date: '2 Mar', wear: item.wear },
-    { price: displayPrice * 1.05, float: item.float ? item.float - 0.01 : null, date: '28 Feb', wear: item.wear },
-    { price: displayPrice * 0.98, float: item.float ? item.float + 0.005 : null, date: '25 Feb', wear: item.wear },
-    { price: displayPrice * 1.12, float: item.float ? item.float - 0.02 : null, date: '20 Feb', wear: item.wear },
+    { price: displayPrice, float: item.float, date: '2 hrs ago' },
+    { price: displayPrice * 1.05, float: item.float ? item.float - 0.01 : null, date: 'Yesterday' },
   ];
 
-  const stickers = item.stattrak ? [
-    { name: 'Natus Vincere', wear: 0.05 },
-    { name: 'BLAST 2024', wear: 0.12 },
-    { name: 'PGL Major', wear: null },
-    { name: 'FaZe Clan', wear: 0.08 },
-  ] : [];
-
-  const priceDrop = -12.1;
-  const isPriceUp = priceDrop > 0;
+  const patternSeed = item.float ? Math.floor(item.float * 1000000) % 1000 : 420;
+  const collectionName = `${item.weapon} Collection`;
+  const isPriceUp = -12.1 > 0;
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
-          <Text style={s.backIcon}>←</Text>
-        </TouchableOpacity>
-        <View style={s.headerCenter}>
-          <Text style={s.headerTitle} numberOfLines={1}>{item.weapon} | {item.skin}</Text>
-          <Text style={s.headerSub}>{item.wear}</Text>
-        </View>
-        <TouchableOpacity style={s.shareBtn}>
-          <Text style={s.shareIcon}>⭐</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* ── ITEM IMAGE ── */}
-        <View style={s.imageSection}>
-          <View style={[s.imageRarityTop, { backgroundColor: item.rarityColor }]} />
-          <View style={s.imageBox}>
-            <Image
-              source={{ uri: item.image }}
-              style={s.mainImage}
-              resizeMode="contain"
-              defaultSource={{ uri: 'https://via.placeholder.com/300x200/1A1A26/444?text=...' }}
-            />
-            {item.stattrak && (
-              <View style={s.stBanner}>
-                <Text style={s.stBannerText}>StatTrak™</Text>
-              </View>
-            )}
-            {item.souvenir && (
-              <View style={[s.stBanner, { backgroundColor: '#E4AE33' }]}>
-                <Text style={[s.stBannerText, { color: '#000' }]}>Souvenir</Text>
-              </View>
-            )}
-          </View>
-          <View style={[s.rarityLabel, { borderColor: item.rarityColor }]}>
-            <View style={[s.rarityDot, { backgroundColor: item.rarityColor }]} />
-            <Text style={[s.rarityText, { color: item.rarityColor }]}>{item.rarity}</Text>
-          </View>
-        </View>
-
-        {/* ── PRICE ── */}
-        <View style={s.priceSection}>
-          <View style={s.priceRow}>
-            {/* ✅ แสดง Spinner ระหว่างโหลด ถ้าโหลดเสร็จแสดงราคาทศนิยม 2 ตำแหน่ง */}
-            {loadingPrice ? (
-               <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-               <Text style={s.mainPrice}>{formatPriceDetailed(displayPrice)}</Text>
-            )}
-            <View style={[s.changeBadge, { backgroundColor: isPriceUp ? colors.accentGreen + '22' : colors.accentRed + '22' }]}>
-              <Text style={[s.changeText, { color: isPriceUp ? colors.accentGreen : colors.accentRed }]}>
-                {isPriceUp ? '+' : ''}{priceDrop}%
-              </Text>
-            </View>
-          </View>
-          <Text style={s.usdPrice}>${displayUsd.toFixed(2)} USD</Text>
-
-          {/* Float */}
-          {item.float != null && (
-            <View style={s.floatSection}>
-              <View style={s.floatRow}>
-                <Text style={s.floatLabel}>Float Value</Text>
-                <Text style={s.floatValue}>{item.float.toFixed(10)} (#{Math.floor(Math.random() * 500) + 1})</Text>
-              </View>
-              <FloatBar float={item.float} />
-            </View>
-          )}
-
-          {/* Status row */}
-          <View style={s.statusRow}>
-            <View style={s.statusDot} />
-            <Text style={s.statusText}>Offline</Text>
-            <Text style={s.statusSep}>•</Text>
-            <Text style={s.statusText}>Listed 2 hours ago</Text>
-            {item.tradeLock && (
-              <>
-                <Text style={s.statusSep}>•</Text>
-                <Text style={[s.statusText, { color: colors.accentRed }]}>🔒 Trade Locked</Text>
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* ── ACTION BUTTONS ── */}
-        <View style={s.actionSection}>
-          <TouchableOpacity
-            style={s.buyNowBtn}
-            onPress={() => navigation.navigate('Payment', { items: [{ ...item, price: displayPrice }] })}
-          >
-            <Text style={s.buyNowText}>BUY NOW — {formatPriceDetailed(displayPrice)}</Text>
+    <View style={s.container}>
+      <LinearGradient colors={[colors.background, '#000000']} style={StyleSheet.absoluteFill} />
+      
+      <SafeAreaView style={s.safe} edges={['top']}>
+        
+        {/* --- Header --- */}
+        <View style={s.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+            <Feather name="chevron-left" size={28} color={colors.textPrimary} />
           </TouchableOpacity>
-          <View style={s.secondaryBtns}>
-            <TouchableOpacity
-              style={s.bidBtn}
-              onPress={() => Alert.alert('Place Bid', `Bid ${formatPriceDetailed(displayPrice * 0.95)}?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Confirm', onPress: () => Alert.alert('Bid Placed!', 'You will be notified if accepted.') },
-              ])}
-            >
-              <Text style={s.bidBtnText}>🏷️ Bid {formatPriceDetailed(displayPrice * 0.95)}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.autoBidBtn}>
-              <Text style={s.autoBidText}>Auto Bid ⚡</Text>
-            </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle} numberOfLines={1}>{item.weapon} | {item.skin}</Text>
+            <Text style={s.headerSub}>{item.wear || 'Vanilla'}</Text>
           </View>
+          <TouchableOpacity style={s.shareBtn}>
+            <Feather name="star" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
-        {/* ── STICKERS ── */}
-        {stickers.length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>STICKERS</Text>
-            <View style={s.stickersGrid}>
-              {stickers.map((st, i) => <StickerChip key={i} name={st.name} wear={st.wear} />)}
+        <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+
+          {/* --- Item Image --- */}
+          <View style={s.imageSection}>
+            <LinearGradient colors={['transparent', rarityColor, 'transparent']} start={{x:0, y:0}} end={{x:1, y:0}} style={s.imageRarityTop} />
+            <View style={s.imageBox}>
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+              <View style={{ position: 'absolute', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                <LinearGradient colors={[`${rarityColor}30`, 'transparent']} style={{ width: 200, height: 200, borderRadius: 100 }} />
+                <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+              </View>
+              <Image source={{ uri: item.image }} style={s.mainImage} resizeMode="contain" />
+              {item.stattrak && (
+                <View style={s.stBanner}>
+                  <Text style={s.stBannerText}>STATTRAK™</Text>
+                </View>
+              )}
             </View>
           </View>
-        )}
 
-        {/* ── DETAILS GRID ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>ITEM DETAILS</Text>
-          <View style={s.detailsGrid}>
-            {[
-              { label: 'Weapon', value: item.weapon },
-              { label: 'Skin', value: item.skin },
-              { label: 'Rarity', value: item.rarity, color: item.rarityColor },
-              { label: 'Wear', value: item.wear || '—' },
-              { label: 'Float', value: item.float?.toFixed(6) || '—' },
-              { label: 'Category', value: item.category },
-              { label: 'StatTrak™', value: item.stattrak ? 'Yes' : 'No', color: item.stattrak ? '#CF6A32' : undefined },
-              { label: 'Souvenir', value: item.souvenir ? 'Yes' : 'No', color: item.souvenir ? '#E4AE33' : undefined },
-            ].map(d => (
-              <View key={d.label} style={s.detailCell}>
-                <Text style={s.detailLabel}>{d.label}</Text>
-                <Text style={[s.detailValue, d.color && { color: d.color }]}>{d.value}</Text>
+          {/* --- Price & Market Data --- */}
+          <View style={s.priceSection}>
+            <View style={s.priceRow}>
+              {loadingPrice ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={s.mainPrice}>{formatPriceDetailed(displayPrice)}</Text>
+              )}
+              <View style={[s.changeBadge, { backgroundColor: isPriceUp ? 'rgba(74, 222, 128, 0.15)' : 'rgba(236, 100, 108, 0.15)' }]}>
+                <Text style={[s.changeText, { color: isPriceUp ? '#4ade80' : colors.primary }]}>
+                  {isPriceUp ? '+' : ''}-12.1%
+                </Text>
               </View>
-            ))}
-          </View>
-        </View>
+            </View>
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+               <Text style={s.usdPrice}>~${displayUsd.toFixed(2)} USD</Text>
+               <Text style={s.volumeText}>24H VOL: {displayVolume}</Text>
+            </View>
 
-        {/* ── PRICE CHART ── */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>PRICE HISTORY</Text>
-            <View style={s.chartTabRow}>
-              {['1M', '3M', '1Y', 'ALL'].map(t => (
-                <TouchableOpacity
-                  key={t}
-                  style={[s.chartTab, chartTab === t && s.chartTabActive]}
-                  onPress={() => setChartTab(t)}
-                >
-                  <Text style={[s.chartTabText, chartTab === t && s.chartTabTextActive]}>{t}</Text>
-                </TouchableOpacity>
+            {item.float != null && (
+              <View style={s.floatSection}>
+                <View style={s.floatRow}>
+                  <Text style={s.floatLabel}>FLOAT VALUE</Text>
+                  <Text style={s.floatValue}>{item.float.toFixed(10)} <Text style={{ color: colors.primary }}> (Seed: {patternSeed})</Text></Text>
+                </View>
+                <FloatBar float={item.float} />
+              </View>
+            )}
+          </View>
+
+          {/* --- Action Buttons --- */}
+          <View style={s.actionSection}>
+            <TouchableOpacity style={s.buyNowBtn} onPress={() => navigation.navigate('Payment', { items: [{ ...item, price: displayPrice }] })}>
+              <Text style={s.buyNowText}>PURCHASE ITEM — {formatPriceDetailed(displayPrice)}</Text>
+            </TouchableOpacity>
+            <View style={s.secondaryBtns}>
+              <TouchableOpacity style={s.bidBtn}>
+                <Text style={s.bidBtnText}>PLACE BID ({formatPriceDetailed(displayPrice * 0.95)})</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* --- Item Details Grid --- */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>INSPECTION DETAILS</Text>
+            <View style={s.detailsGrid}>
+              <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+              {[
+                { label: 'WEAPON', value: item.weapon },
+                { label: 'SKIN', value: item.skin },
+                { label: 'RARITY', value: item.rarity, color: rarityColor },
+                { label: 'EXTERIOR', value: item.wear || 'Vanilla' },
+                { label: 'COLLECTION', value: collectionName },
+                { label: 'PATTERN SEED', value: patternSeed },
+              ].map((d, i) => (
+                <View key={d.label} style={[s.detailCell, i % 2 !== 0 && { borderRightWidth: 0 }]}>
+                  <Text style={s.detailLabel}>{d.label}</Text>
+                  <Text style={[s.detailValue, d.color && { color: d.color }]} numberOfLines={1}>{d.value}</Text>
+                </View>
               ))}
             </View>
           </View>
-          <View style={s.chartBox}>
-            <MiniChart data={priceHistory[chartTab]} />
-          </View>
-        </View>
 
-        {/* ── BUY ORDERS / LATEST SALES ── */}
-        <View style={s.section}>
-          <TabBar
-            tabs={['Buy Orders', 'Latest Sales', 'Similar']}
-            active={infoTab}
-            onSelect={setInfoTab}
-          />
-          <View style={s.tabContent}>
-            {infoTab === 'Buy Orders' && (
-              <View>
-                <View style={s.tableHeader}>
-                  <Text style={s.tableHeaderText}>Price</Text>
-                  <Text style={s.tableHeaderText}>Quantity</Text>
-                </View>
-                {buyOrders.map((o, i) => (
-                  <BuyOrderRow key={i} price={o.price} qty={o.qty} isHighest={i === 0} />
+          {/* --- Chart --- */}
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <Text style={s.sectionTitle}>MARKET TREND</Text>
+              <View style={s.chartTabRow}>
+                {['1M', '3M', '1Y', 'ALL'].map(t => (
+                  <TouchableOpacity key={t} style={[s.chartTab, chartTab === t && s.chartTabActive]} onPress={() => setChartTab(t)}>
+                    <Text style={[s.chartTabText, chartTab === t && s.chartTabTextActive]}>{t}</Text>
+                  </TouchableOpacity>
                 ))}
-                <TouchableOpacity
-                  style={s.createOrderBtn}
-                  onPress={() => Alert.alert('Create Buy Order', 'Set your target price to auto-buy when available')}
-                >
-                  <Text style={s.createOrderText}>+ CREATE BUY ORDER</Text>
-                </TouchableOpacity>
               </View>
-            )}
+            </View>
+            <View style={s.chartBox}>
+              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+              
+              {/* เรียกใช้ InteractiveChart แทน MiniChart ตรงนี้ */}
+              <InteractiveChart data={priceHistory[chartTab]} />
+              
+            </View>
+          </View>
 
-            {infoTab === 'Latest Sales' && (
-              <View>
-                <View style={[s.tableHeader, { justifyContent: 'space-between' }]}>
-                  <Text style={s.tableHeaderText}>Price</Text>
-                  <Text style={s.tableHeaderText}>Float</Text>
-                  <Text style={s.tableHeaderText}>Date</Text>
-                </View>
-                {latestSales.map((sale, i) => (
-                  <View key={i} style={s.saleRow}>
-                    <Text style={s.salePrice}>{formatPriceDetailed(sale.price)}</Text>
-                    <Text style={s.saleFloat}>{sale.float?.toFixed(6) || '—'}</Text>
-                    <Text style={s.saleDate}>{sale.date}</Text>
+          {/* --- Tables --- */}
+          <View style={[s.section, { borderBottomWidth: 0, paddingBottom: 40 }]}>
+            <TabBar tabs={['Buy Orders', 'Latest Sales']} active={infoTab} onSelect={setInfoTab} />
+            <View style={s.tabContent}>
+              <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+              {infoTab === 'Buy Orders' && (
+                <View>
+                  <View style={s.tableHeader}>
+                    <Text style={s.tableHeaderText}>TARGET PRICE</Text>
+                    <Text style={s.tableHeaderText}>VOLUME</Text>
                   </View>
-                ))}
-              </View>
-            )}
-
-            {infoTab === 'Similar' && (
-              <View style={s.similarEmpty}>
-                <Text style={s.similarEmptyIcon}>🔫</Text>
-                <Text style={s.similarEmptyText}>Similar items coming soon</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* ── SELLER INFO ── */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>SELLER</Text>
-          <View style={s.sellerCard}>
-            <View style={s.sellerAvatar}>
-              <Text style={{ fontSize: 24 }}>🎯</Text>
+                  {buyOrders.map((o, i) => <BuyOrderRow key={i} price={o.price} qty={o.qty} isHighest={i === 0} />)}
+                </View>
+              )}
+              {infoTab === 'Latest Sales' && (
+                <View>
+                  <View style={[s.tableHeader, { justifyContent: 'space-between' }]}>
+                    <Text style={s.tableHeaderText}>PRICE SOLD</Text>
+                    <Text style={s.tableHeaderText}>FLOAT</Text>
+                    <Text style={s.tableHeaderText}>TIME</Text>
+                  </View>
+                  {latestSales.map((sale, i) => (
+                    <View key={i} style={s.saleRow}>
+                      <Text style={s.salePrice}>{formatPriceDetailed(sale.price)}</Text>
+                      <Text style={s.saleFloat}>{sale.float?.toFixed(5) || '—'}</Text>
+                      <Text style={s.saleDate}>{sale.date}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
-            <View style={s.sellerInfo}>
-              <Text style={s.sellerName}>CS2 Trader TH</Text>
-              <View style={s.sellerStats}>
-                <Text style={s.sellerStat}>⭐ 4.9</Text>
-                <Text style={s.sellerSep}>•</Text>
-                <Text style={s.sellerStat}>128 trades</Text>
-                <Text style={s.sellerSep}>•</Text>
-                <View style={s.onlineDot} />
-                <Text style={[s.sellerStat, { color: colors.accentGreen }]}>Online</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={s.msgBtn}>
-              <Text style={s.msgBtnText}>💬</Text>
-            </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
+// ==========================================
+// 3. STYLES
+// ==========================================
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    gap: 12,
-  },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  backIcon: { color: colors.textPrimary, fontSize: 22, fontWeight: '600' },
-  headerCenter: { flex: 1 },
-  headerTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
-  headerSub: { color: colors.textMuted, fontSize: 11, marginTop: 1 },
-  shareBtn: { padding: 6 },
-  shareIcon: { fontSize: 20 },
-
+  container: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  backBtn: { width: 40, height: 40, justifyContent: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 16, fontStyle: 'italic', letterSpacing: 1 },
+  headerSub: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 11, marginTop: 2 },
+  shareBtn: { width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' },
   scroll: { flex: 1 },
 
-  // Image
-  imageSection: { alignItems: 'center', paddingVertical: 8 },
-  imageRarityTop: { height: 3, width: '100%', marginBottom: 0 },
-  imageBox: {
-    width: '100%', height: 220,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
-  },
-  mainImage: { width: width - 40, height: 200 },
-  stBanner: {
-    position: 'absolute', top: 12, left: 12,
-    backgroundColor: '#CF6A32', borderRadius: 6,
-    paddingHorizontal: 10, paddingVertical: 4,
-  },
-  stBannerText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  rarityLabel: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1, borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 4,
-    marginTop: 10,
-  },
-  rarityDot: { width: 8, height: 8, borderRadius: 4 },
-  rarityText: { fontSize: 12, fontWeight: '700' },
+  imageSection: { alignItems: 'center', paddingVertical: 16 },
+  imageRarityTop: { height: 1.5, width: '80%', marginBottom: 10 },
+  imageBox: { width: width - 32, height: 240, borderRadius: 20, overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(76, 44, 52, 0.2)' },
+  mainImage: { width: '85%', height: '85%', zIndex: 10 },
+  stBanner: { position: 'absolute', top: 16, left: 16, backgroundColor: '#CF6A32', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, zIndex: 20 },
+  stBannerText: { color: '#fff', fontFamily: 'Rajdhani_700Bold', fontSize: 10, letterSpacing: 1 },
 
-  // Price
-  priceSection: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: 16, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
-  mainPrice: { color: colors.primary, fontSize: 28, fontWeight: '900' },
-  changeBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  changeText: { fontSize: 13, fontWeight: '800' },
-  usdPrice: { color: colors.textMuted, fontSize: 13, marginBottom: 14 },
+  priceSection: { paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
+  mainPrice: { color: colors.primary, fontFamily: 'Rajdhani_700Bold', fontSize: 32 },
+  changeBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 0.5, borderColor: 'rgba(236, 100, 108, 0.3)' },
+  changeText: { fontFamily: 'Rajdhani_700Bold', fontSize: 12 },
+  usdPrice: { color: colors.textMuted, fontFamily: 'Rajdhani_600SemiBold', fontSize: 12, marginBottom: 16 },
+  volumeText: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 10, letterSpacing: 1, marginBottom: 16 },
 
-  floatSection: { marginBottom: 8 },
+  floatSection: { marginTop: 4 },
   floatRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  floatLabel: { color: colors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  floatValue: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },
+  floatLabel: { color: colors.textSecondary, fontFamily: 'Rajdhani_700Bold', fontSize: 10, letterSpacing: 1 },
+  floatValue: { color: colors.textPrimary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 11 },
 
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textMuted },
-  statusText: { color: colors.textMuted, fontSize: 11 },
-  statusSep: { color: colors.border, fontSize: 11 },
+  actionSection: { padding: 20, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.1)', gap: 12 },
+  buyNowBtn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 18, alignItems: 'center', shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { height: 4, width: 0 } },
+  buyNowText: { color: '#000', fontFamily: 'Rajdhani_700Bold', fontSize: 15, letterSpacing: 0.5 },
+  secondaryBtns: { flexDirection: 'row', gap: 12 },
+  bidBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingVertical: 14, alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)' },
+  bidBtnText: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 12, letterSpacing: 0.5 },
 
-  // Actions
-  actionSection: {
-    paddingHorizontal: 16, paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    gap: 10,
-  },
-  buyNowBtn: {
-    backgroundColor: colors.primary, borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center',
-  },
-  buyNowText: { color: '#000', fontSize: 15, fontWeight: '900', letterSpacing: 0.3 },
-  secondaryBtns: { flexDirection: 'row', gap: 10 },
-  bidBtn: {
-    flex: 1, backgroundColor: colors.surfaceElevated,
-    borderRadius: 12, paddingVertical: 13, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border,
-  },
-  bidBtnText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
-  autoBidBtn: {
-    flex: 1, backgroundColor: colors.accentBlue + '22',
-    borderRadius: 12, paddingVertical: 13, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.accentBlue + '44',
-  },
-  autoBidText: { color: colors.accentBlue, fontSize: 13, fontWeight: '700' },
+  section: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { color: colors.textMuted, fontFamily: 'Rajdhani_700Bold', fontSize: 11, letterSpacing: 2, marginBottom: 12 },
 
-  // Section
-  section: {
-    paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  sectionTitle: {
-    color: colors.textMuted, fontSize: 10, fontWeight: '800',
-    letterSpacing: 2, marginBottom: 14,
-  },
+  detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: 16, overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.02)' },
+  detailCell: { width: '50%', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.05)', borderRightWidth: 0.5, borderRightColor: 'rgba(255,255,255,0.05)' },
+  detailLabel: { color: colors.textMuted, fontFamily: 'Rajdhani_600SemiBold', fontSize: 9, letterSpacing: 1, marginBottom: 4 },
+  detailValue: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 13 },
 
-  stickersGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
+  chartTabRow: { flexDirection: 'row', gap: 6 },
+  chartTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
+  chartTabActive: { backgroundColor: 'rgba(236, 100, 108, 0.15)', borderWidth: 0.5, borderColor: colors.primary },
+  chartTabText: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 10 },
+  chartTabTextActive: { color: colors.primary, fontFamily: 'Rajdhani_700Bold' },
+  chartBox: { borderRadius: 16, padding: 10, paddingBottom: 20, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.02)' },
 
-  // Details grid
-  detailsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: colors.border,
-    marginBottom: 12,
-  },
-  detailCell: {
-    width: '50%', paddingVertical: 12, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-    borderRightWidth: 1, borderRightColor: colors.border,
-  },
-  detailLabel: { color: colors.textMuted, fontSize: 10, fontWeight: '600', marginBottom: 3, letterSpacing: 0.5 },
-  detailValue: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
-
-  // Chart
-  chartTabRow: { flexDirection: 'row', gap: 4 },
-  chartTab: {
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 6,
-  },
-  chartTabActive: { backgroundColor: colors.surfaceElevated },
-  chartTabText: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  chartTabTextActive: { color: colors.primary, fontWeight: '800' },
-  chartBox: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: colors.border,
-    marginBottom: 12,
-  },
-
-  // Table
-  tabContent: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 12, overflow: 'hidden',
-    borderWidth: 1, borderColor: colors.border,
-    marginTop: 10, marginBottom: 12,
-  },
-  tableHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 8, paddingHorizontal: 14,
-    backgroundColor: colors.cardBg,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  tableHeaderText: { color: colors.textMuted, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-
-  saleRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 11, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  salePrice: { color: colors.primary, fontSize: 13, fontWeight: '700', flex: 1 },
-  saleFloat: { color: colors.textSecondary, fontSize: 11, flex: 1.5, textAlign: 'center' },
-  saleDate: { color: colors.textMuted, fontSize: 11, flex: 0.8, textAlign: 'right' },
-
-  createOrderBtn: {
-    paddingVertical: 14, alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: colors.border,
-  },
-  createOrderText: { color: colors.accent, fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
-
-  similarEmpty: { padding: 32, alignItems: 'center' },
-  similarEmptyIcon: { fontSize: 32, marginBottom: 8, opacity: 0.4 },
-  similarEmptyText: { color: colors.textMuted, fontSize: 13 },
-
-  // Seller
-  sellerCard: {
-    backgroundColor: colors.surfaceElevated, borderRadius: 14,
-    borderWidth: 1, borderColor: colors.border,
-    padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginBottom: 12,
-  },
-  sellerAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: colors.cardBg,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.border,
-  },
-  sellerInfo: { flex: 1 },
-  sellerName: { color: colors.textPrimary, fontSize: 15, fontWeight: '800', marginBottom: 4 },
-  sellerStats: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sellerStat: { color: colors.textMuted, fontSize: 11, fontWeight: '500' },
-  sellerSep: { color: colors.border },
-  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accentGreen },
-  msgBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.cardBg, borderWidth: 1, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  msgBtnText: { fontSize: 18 },
+  tabContent: { borderRadius: 16, overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', marginTop: 12, backgroundColor: 'rgba(255,255,255,0.02)' },
+  tableHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.4)', borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.1)' },
+  tableHeaderText: { color: colors.textMuted, fontFamily: 'Rajdhani_700Bold', fontSize: 10, letterSpacing: 1 },
+  saleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.05)' },
+  salePrice: { color: colors.primary, fontFamily: 'Rajdhani_700Bold', fontSize: 13, flex: 1 },
+  saleFloat: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 11, flex: 1.5, textAlign: 'center' },
+  saleDate: { color: colors.textMuted, fontFamily: 'Rajdhani_500Medium', fontSize: 10, flex: 0.8, textAlign: 'right' },
 });
