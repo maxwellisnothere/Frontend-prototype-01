@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ====== CONFIG ======
 const BASE_URL = process.env.BASE_URL || "http://10.0.2.2:3000";
+
 // ====== AUTH ======
 
 export function getSteamLoginURL() {
@@ -44,7 +45,6 @@ export async function verifyToken(token) {
 
 // ✅ Logout — ล้างทุก key ให้ครบ
 export async function logout() {
-  // ดึงข้อมูลก่อน clear
   const displayName = await AsyncStorage.getItem("displayName");
   const steamId = await AsyncStorage.getItem("steamId");
   const userType = await AsyncStorage.getItem("userType");
@@ -63,7 +63,7 @@ export async function logout() {
     "displayName",
     "avatar",
     "userType",
-    "user", // ล้าง key เก่าด้วยเผื่อมีค้างอยู่
+    "user", 
   ]);
 }
 
@@ -90,7 +90,6 @@ export async function getStoredToken() {
 
 // ====== ITEMS ======
 
-// ✅ แก้ — รับทั้ง category และ type ให้ทำงานได้ทั้งคู่
 export async function fetchItems({
   search = "",
   category = "",
@@ -105,7 +104,7 @@ export async function fetchItems({
   if (cat && cat !== "All") params.append("category", cat);
 
   const url = `${BASE_URL}/items?${params}`;
-  console.log("🌐 [API] fetchItems URL:", url); // ← เพิ่มตรงนี้
+  console.log("🌐 [API] fetchItems URL:", url);
 
   const res = await fetch(url);
   const data = await res.json();
@@ -114,9 +113,10 @@ export async function fetchItems({
     data.total,
     "| items[0]:",
     data.items?.[0]?.weapon,
-  ); // ← เพิ่มตรงนี้
+  );
   return data;
 }
+
 export async function fetchItemById(id) {
   const res = await fetch(`${BASE_URL}/items/${encodeURIComponent(id)}`);
   return res.json();
@@ -127,12 +127,10 @@ export async function fetchItemById(id) {
 export async function fetchInventory(steamId) {
   const token = await getStoredToken();
   
-  // ✅ เปลี่ยน URL ตรงนี้เป็น /inventory/sync
   const res = await fetch(`${BASE_URL}/inventory/sync`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   
-  // ✅ (แถม) ดักจับ Error ไว้หน่อย เพื่อไม่ให้แอปแครชเวลาเซิร์ฟเวอร์ล่มหรือตอบกลับเป็น HTML
   if (!res.ok) {
      const errorText = await res.text();
      console.log("❌ API Error text:", errorText);
@@ -143,6 +141,21 @@ export async function fetchInventory(steamId) {
 }
 
 // ====== MARKET ======
+
+// 🟢 ฟังก์ชันที่หายไป เพิ่มให้แล้วตรงนี้ครับ!
+export async function fetchMarketTrends() {
+  try {
+    const res = await fetch(`${BASE_URL}/market/trends`);
+    if (!res.ok) {
+      console.log(`❌ Market Trends API Error [${res.status}]`);
+      return { success: false, trends: [] };
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("❌ Network Error (fetchMarketTrends):", error.message);
+    return { success: false, trends: [] };
+  }
+}
 
 export async function fetchListings() {
   const res = await fetch(`${BASE_URL}/market/listings`);
@@ -184,6 +197,32 @@ export async function deleteListing(listingId) {
   const res = await fetch(`${BASE_URL}/market/list/${listingId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+// ฟังก์ชันสำหรับวางขายไอเทม
+export async function listItem(item, price) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/list`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ item, price }),
+  });
+  return res.json();
+}
+
+// ฟังก์ชันสำหรับถอนการวางขาย
+export async function removeListing(listingId) {
+  const token = await getStoredToken();
+  const res = await fetch(`${BASE_URL}/market/list/${listingId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
   return res.json();
 }
@@ -251,34 +290,6 @@ export async function confirmTradeOffer(orderId, tradeOfferId) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ tradeOfferId }),
-  });
-  return res.json();
-}
-
-// ====== MARKET LISTING ======
-
-// ฟังก์ชันสำหรับวางขายไอเทม
-export async function listItem(item, price) {
-  const token = await getStoredToken();
-  const res = await fetch(`${BASE_URL}/market/list`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ item, price }),
-  });
-  return res.json();
-}
-
-// ฟังก์ชันสำหรับถอนการวางขาย
-export async function removeListing(listingId) {
-  const token = await getStoredToken();
-  const res = await fetch(`${BASE_URL}/market/list/${listingId}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
   });
   return res.json();
 }

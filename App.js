@@ -2,6 +2,8 @@ import React, { useCallback, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import * as SplashScreen from "expo-splash-screen";
+import * as Linking from "expo-linking"; // 🟢 1. ดึง expo-linking มาใช้งาน
+
 import { 
   useFonts, 
   Rajdhani_500Medium, 
@@ -14,38 +16,43 @@ import { BalanceProvider } from "./src/context/BalanceContext";
 import { HistoryProvider } from "./src/context/HistoryContext";
 import { colors } from "./src/theme/colors";
 
-// ป้องกันไม่ให้ Splash Screen หายไปเองจนกว่าเราจะสั่ง
 SplashScreen.preventAutoHideAsync();
 
+// 🟢 2. ตั้งค่าการรับ URL กลับเข้าแอป (Deep Linking)
+const linking = {
+  prefixes: [Linking.createURL("/"), "myapp://"], // ระบุ Prefix ให้ตรงกับ Backend
+  config: {
+    screens: {
+      // ระบุชื่อหน้าจอที่ต้องการให้รับข้อมูลกลับมา (ดูชื่อจาก StackNavigator)
+      // สมมติว่าหน้าจอ Login ใช้ชื่อ "Login"
+      Login: "auth/callback", 
+    },
+  },
+};
+
 export default function App() {
-  // โหลด Custom Fonts (Rajdhani)
   const [fontsLoaded, fontError] = useFonts({
     Rajdhani_500Medium,
     Rajdhani_600SemiBold,
     Rajdhani_700Bold,
   });
 
-  // ฟังก์ชันจัดการการปิด Splash Screen เมื่อแอปพร้อม
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {
-      // ซ่อน Splash Screen อย่างนุ่มนวล
       await SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
 
-  // หากฟอนต์ยังโหลดไม่เสร็จ ให้คืนค่า null (Splash Screen จะยังแสดงอยู่)
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
-    <View 
-      style={styles.container} 
-      onLayout={onLayoutRootView}
-    >
+    <View style={styles.container} onLayout={onLayoutRootView}>
       <BalanceProvider>
         <HistoryProvider>
-          <NavigationContainer>
+          {/* 🟢 3. แนบ linking เข้าไปใน NavigationContainer */}
+          <NavigationContainer linking={linking}>
             <StackNavigator />
           </NavigationContainer>
         </HistoryProvider>
@@ -57,6 +64,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background, // ใช้สีพื้นหลังของธีมเพื่อความต่อเนื่อง
+    backgroundColor: colors.background,
   },
 });
