@@ -1,52 +1,36 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { formatPrice } from '../data/items';
+import GlowBackground from './GlowBackground'; // 🟢 Import SVG ที่เราสร้างไว้
 
-// ==========================================
-// 1. SUB-COMPONENTS
-// ==========================================
-
-const BloomGlow = ({ color }) => (
-  <View style={styles.glowContainer}>
-    <LinearGradient colors={[`${color}15`, 'transparent']} style={[styles.glowLayer, styles.glowOuter]} />
-    <LinearGradient colors={[`${color}30`, 'transparent']} style={[styles.glowLayer, styles.glowMid]} />
-    <LinearGradient colors={[`${color}60`, 'transparent']} style={[styles.glowLayer, styles.glowInner]} />
-    <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-  </View>
-);
-
+// 🟢 เอากลับมาแล้ว! คอมโพเนนต์ป้าย StatTrak (ห้ามลบตัวนี้นะครับ)
 const StatTrakBadge = () => (
   <View style={styles.stBadge}>
     <Text style={styles.stText}>STATTRAK™</Text>
   </View>
 );
 
-// ==========================================
-// 2. MAIN COMPONENT
-// ==========================================
-
 export default function ItemCard({ item, onPress }) {
+  // ดึงสี rarityColor จากข้อมูลไอเท็มมาใช้งาน
   const rarityColor = item?.rarityColor || '#4B69FF';
   const safePrice = item?.price || 0;
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      {/* ผิวกระจกหลัก */}
       <LinearGradient
         colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.02)']}
         style={StyleSheet.absoluteFill}
       />
       
-      {/* รูปภาพและแสง */}
       <View style={styles.imageBox}>
-        <BloomGlow color={rarityColor} />
+        {/* 🟢 ใช้ SVG พื้นหลังเรืองแสงตรงนี้ */}
+        <GlowBackground color={rarityColor} />
+        
         <Image source={{ uri: item?.image }} style={styles.image} resizeMode="contain" />
         {item?.stattrak && <StatTrakBadge />}
       </View>
 
-      {/* ข้อมูลไอเทม */}
       <View style={styles.info}>
         <Text style={styles.weaponName}>{item?.weapon || 'WEAPON'}</Text>
         <Text style={styles.skinName} numberOfLines={1}>{item?.skin || 'SKIN'}</Text>
@@ -59,7 +43,6 @@ export default function ItemCard({ item, onPress }) {
         </View>
       </View>
       
-      {/* เส้นนีออนที่ฐาน */}
       <LinearGradient
         colors={['transparent', rarityColor, 'transparent']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -70,7 +53,7 @@ export default function ItemCard({ item, onPress }) {
 }
 
 // ==========================================
-// 3. STYLES
+// 3. STYLES (เอาสไตล์ทั้งหมดกลับมาด้วยครับ)
 // ==========================================
 const styles = StyleSheet.create({
   card: {
@@ -87,15 +70,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glowContainer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glowLayer: { position: 'absolute' },
-  glowOuter: { width: 180, height: 180, borderRadius: 90 },
-  glowMid: { width: 120, height: 120, borderRadius: 60 },
-  glowInner: { width: 70, height: 70, borderRadius: 35 },
   image: {
     width: '85%',
     height: '85%',

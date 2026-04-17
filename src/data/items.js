@@ -5,14 +5,14 @@ export const items = [
     weapon: 'AK-47',
     skin: 'Redline',
     rarity: 'Classified',
-    rarityColor: '#D32CE6',
+    rarityColor: '#D32CE6', // ใช้สีนี้ส่งไปที่ SVG GlowBackground ได้เลย
     wear: 'Field-Tested',
     price: 18450,
     priceUSD: 52.5,
     float: 0.2341,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Rifle',
+    category: 'Weapon',
+    type: 'Rifles', // ปรับให้ตรงกับ id ใน CATEGORIES ของ HomeScreen
     tradeLock: false,
     inInventory: true,
     stattrak: false,
@@ -33,8 +33,8 @@ export const items = [
     priceUSD: 2543.2,
     float: 0.0892,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Rifle',
+    category: 'Weapon',
+    type: 'Rifles',
     tradeLock: false,
     inInventory: false,
     stattrak: false,
@@ -56,7 +56,7 @@ export const items = [
     float: 0.0034,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
     category: 'Knife',
-    type: 'Knife',
+    type: 'Knives',
     tradeLock: true,
     inInventory: true,
     stattrak: true,
@@ -77,8 +77,8 @@ export const items = [
     priceUSD: 1857.1,
     float: 0.7821,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Sniper Rifle',
+    category: 'Weapon',
+    type: 'Sniper',
     tradeLock: false,
     inInventory: false,
     stattrak: false,
@@ -99,8 +99,8 @@ export const items = [
     priceUSD: 28.0,
     float: 0.0112,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Pistol',
+    category: 'Weapon',
+    type: 'Pistols',
     tradeLock: false,
     inInventory: true,
     stattrak: false,
@@ -121,7 +121,7 @@ export const items = [
     priceUSD: 891.4,
     float: 0.3421,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Glove',
+    category: 'Gloves',
     type: 'Gloves',
     tradeLock: false,
     inInventory: false,
@@ -143,8 +143,8 @@ export const items = [
     priceUSD: 1.0,
     float: null,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Cases',
-    type: 'Case',
+    category: 'Container',
+    type: 'Cases',
     tradeLock: false,
     inInventory: true,
     stattrak: false,
@@ -165,8 +165,8 @@ export const items = [
     priceUSD: 92.9,
     float: 0.1234,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Pistol',
+    category: 'Weapon',
+    type: 'Pistols',
     tradeLock: false,
     inInventory: true,
     stattrak: true,
@@ -188,7 +188,7 @@ export const items = [
     float: 0.0041,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
     category: 'Knife',
-    type: 'Knife',
+    type: 'Knives',
     tradeLock: true,
     inInventory: false,
     stattrak: false,
@@ -209,8 +209,8 @@ export const items = [
     priceUSD: 70.0,
     float: 0.0078,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Pistol',
+    category: 'Weapon',
+    type: 'Pistols',
     tradeLock: false,
     inInventory: true,
     stattrak: false,
@@ -231,8 +231,8 @@ export const items = [
     priceUSD: 414.3,
     float: 0.4312,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Guns',
-    type: 'Rifle',
+    category: 'Weapon',
+    type: 'Rifles',
     tradeLock: false,
     inInventory: false,
     stattrak: false,
@@ -253,7 +253,7 @@ export const items = [
     priceUSD: 248.6,
     float: 0.4123,
     image: 'https://community.cloudflare.steamstatic.com/economy/image/fWFc82js0fmoRAP-qOIPu5THSWqfSmTELLqcUywGkijVjZULUrsm1j-9xgEYOwEUVmKFSz-wL5KFqC0bCGXvtCREfmBs_XYAA2JajjQGODeKz-asMiUmF-2wNygVPLQqgYMm0oV79HH0zbtxMpVW/360fx360f',
-    category: 'Glove',
+    category: 'Gloves',
     type: 'Gloves',
     tradeLock: false,
     inInventory: true,
@@ -272,14 +272,10 @@ export const bestSellingItems = items.filter(i => i?.bestSelling);
 export const recommendedItems = items.filter(i => i?.recommended);
 
 /**
- * ฟังก์ชันจัดฟอร์แมตราคาให้ปลอดภัย (Fix: TypeError toLocaleString of undefined)
- * @param {number|string} price - ราคาที่ต้องการจัดฟอร์แมต
+ * ฟังก์ชันจัดฟอร์แมตราคาให้ปลอดภัย
  */
 export const formatPrice = (price) => {
-  // ตรวจสอบว่าเป็นตัวเลขที่ใช้งานได้จริงไหม ถ้าไม่ใช่ให้ใช้ 0 แทน (Fallback)
   const safeValue = Number(price) || 0;
-  
-  // ใช้ Intl.NumberFormat เพื่อความแม่นยำและรองรับมาตรฐานสากล
   return '฿' + safeValue.toLocaleString('th-TH', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
@@ -288,13 +284,10 @@ export const formatPrice = (price) => {
 
 /**
  * คำนวณมูลค่ารวมของรายการไอเทม
- * @param {Array} itemList - รายการไอเทม
  */
 export const getTotalValue = (itemList) => {
   if (!Array.isArray(itemList)) return 0;
-  
   return itemList.reduce((sum, item) => {
-    // ป้องกันกรณี item.price เป็น undefined
     const price = Number(item?.price) || 0;
     return sum + price;
   }, 0);

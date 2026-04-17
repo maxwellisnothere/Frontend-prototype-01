@@ -2,65 +2,72 @@ import { fetchInventory, getStoredUser, fetchBalance } from '../data/api';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  FlatList, Image, ActivityIndicator, Platform, ScrollView
+  FlatList, Image, ActivityIndicator, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { SvgXml } from 'react-native-svg';
 import { colors } from '../theme/colors';
+import GlowBackground from '../components/GlowBackground';
+
+const xmlData = `<svg width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="smooth_blur" x="-300" y="-300" width="1400" height="1400" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="100"/>
+    </filter>
+    <filter id="grain_effect" x="0" y="0" width="800" height="800" filterUnits="userSpaceOnUse">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.15 0" in="noise"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect width="800" height="800" fill="#020202"/>
+  <g filter="url(#smooth_blur)">
+    <circle cx="100" cy="700" r="250" fill="#0A2472" fill-opacity="0.5"/>
+    <circle cx="750" cy="400" r="200" fill="#1E3A8A" fill-opacity="0.3"/>
+    <circle cx="700" cy="100" r="180" fill="#00072D" fill-opacity="0.6"/>
+  </g>
+  <rect width="800" height="800" filter="url(#grain_effect)" opacity="0.6"/>
+</svg>`;
 
 const BASE_URL = 'https://defuse-th-backend-main.onrender.com';
-const FILTERS  = ['Sellable', 'Trade Lock', 'Containers'];
+const FILTERS = ['Sellable', 'Trade Lock', 'Containers'];
 
 // ==========================================
 // 1. HELPERS & CACHE
 // ==========================================
 const formatPriceDetailed = (price) => {
-  if (price == null) return "฿0.00";
+  if (price == null) return '฿0.00';
   return `฿${price.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const priceMemCache = new Map();
-const PRICE_CACHE_TTL = 5 * 60 * 1000; 
+const PRICE_CACHE_TTL = 5 * 60 * 1000;
 
 async function fetchSteamPrice(itemName) {
   if (!itemName || itemName.trim() === '') return null;
   const cached = priceMemCache.get(itemName);
   if (cached && Date.now() - cached.ts < PRICE_CACHE_TTL) return cached;
-  
   try {
-    const res  = await fetch(`${BASE_URL}/inventory/price/${encodeURIComponent(itemName)}`);
+    const res = await fetch(`${BASE_URL}/inventory/price/${encodeURIComponent(itemName)}`);
     const json = await res.json();
-    
     if (json.success && json.thb > 0) {
       const result = { lowestThb: json.thb, lowestUsd: json.usd, ts: Date.now() };
       priceMemCache.set(itemName, result);
       return result;
     }
   } catch (err) {
-    console.log("❌ Fetch price error:", err);
+    console.log('❌ Fetch price error:', err);
   }
   return null;
 }
 
 // ==========================================
-// 2. SUB-COMPONENTS (GLASSMORPHISM STYLE)
+// 2. ITEM CARD
 // ==========================================
-
-// --- แสงฟุ้งหลังปืน ---
-const BloomGlow = ({ color }) => (
-  <View style={StyleSheet.absoluteFill}>
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <LinearGradient colors={[`${color}15`, 'transparent']} style={[cs.glowLayer, { width: 140, height: 140, borderRadius: 70 }]} />
-      <LinearGradient colors={[`${color}30`, 'transparent']} style={[cs.glowLayer, { width: 90, height: 90, borderRadius: 45 }]} />
-      <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
-    </View>
-  </View>
-);
-
-const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
+const ItemCard = React.memo(({ item, onSell, onPress, onPriceLoaded }) => {
   const [steamThb, setSteamThb] = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(true);
   const mountedRef = useRef(true);
@@ -91,35 +98,37 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
   return (
     <View style={cs.wrapper}>
       <TouchableOpacity style={cs.card} onPress={onPress} activeOpacity={0.9}>
-        {/* เลเยอร์กระจก */}
-        <LinearGradient colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.01)']} style={StyleSheet.absoluteFill} />
-        
-        {/* รูปภาพและแสง */}
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.01)']}
+          style={StyleSheet.absoluteFill}
+        />
+
         <View style={cs.imageBox}>
-          <BloomGlow color={rarityColor} />
+          <GlowBackground color={rarityColor} />
           <Image source={{ uri: item.image }} style={cs.image} resizeMode="contain" />
-          {item.stattrak && <View style={cs.stBadge}><Text style={cs.stText}>STATTRAK™</Text></View>}
-          {item.tradeLock && <View style={cs.lockBadge}><Feather name="lock" size={10} color="#FFF" /></View>}
-          {item.listed && (
-            <View style={cs.listedOverlay}>
-              <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-              <Text style={cs.listedOverlayText}>LISTED</Text>
-            </View>
+          {item.stattrak && (
+            <View style={cs.stBadge}><Text style={cs.stText}>STATTRAK™</Text></View>
+          )}
+          {item.tradeLock && (
+            <View style={cs.lockBadge}><Feather name="lock" size={10} color="#FFF" /></View>
           )}
         </View>
 
-        {/* ข้อมูล */}
         <View style={cs.info}>
           <Text style={cs.weapon} numberOfLines={1}>{item.weapon}</Text>
           <Text style={cs.skin} numberOfLines={1}>{item.skin}</Text>
-          
+
           <View style={cs.detailRow}>
             {item.wear && (
               <View style={[cs.wearBadge, { borderColor: `${rarityColor}40` }]}>
-                <Text style={cs.wear}>{item.wear.split('-').map(w => w[0]).join('').toUpperCase().substring(0,2)}</Text>
+                <Text style={cs.wear}>
+                  {item.wear.split('-').map(w => w[0]).join('').toUpperCase().substring(0, 2)}
+                </Text>
               </View>
             )}
-            {item.float != null && <Text style={cs.float}>{item.float.toFixed(4)}</Text>}
+            {item.float != null && (
+              <Text style={cs.float}>{item.float.toFixed(4)}</Text>
+            )}
           </View>
 
           <View style={cs.priceRow}>
@@ -127,24 +136,29 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
               <ActivityIndicator size="small" color={colors.textMuted} />
             ) : (
               <>
-                <Text style={[cs.price, !hasSteam && cs.priceFallback]}>{formatPriceDetailed(displayPrice)}</Text>
+                <Text style={[cs.price, !hasSteam && cs.priceFallback]}>
+                  {formatPriceDetailed(displayPrice)}
+                </Text>
                 {hasSteam && <View style={cs.liveDot} />}
               </>
             )}
           </View>
         </View>
 
-        {/* เส้นนีออน */}
-        <LinearGradient
-          colors={['transparent', rarityColor, 'transparent']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-          style={cs.bottomNeonLine}
-        />
+        <View style={[cs.bottomNeonLine, { backgroundColor: rarityColor }]} />
+
+        {item.listed && (
+          <View style={cs.listedOverlay}>
+            <View style={cs.listedOverlayInner}>
+              <Text style={cs.listedOverlayIcon}>✅</Text>
+              <Text style={cs.listedOverlayText}>LISTED</Text>
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
 
-      {/* ปุ่มขายแบบ Glass */}
       <TouchableOpacity
-        style={[cs.sellBtn, item.tradeLock && cs.sellBtnLocked, item.listed && cs.sellBtnListed]}
+        style={[cs.sellBtn, (item.tradeLock || item.listed) && cs.sellBtnLocked]}
         disabled={item.tradeLock || item.listed}
         onPress={() => onSell(item)}
         activeOpacity={0.8}
@@ -155,7 +169,7 @@ const ItemCard = ({ item, onSell, onPress, onPriceLoaded }) => {
       </TouchableOpacity>
     </View>
   );
-};
+});
 
 // ==========================================
 // 3. MAIN SCREEN
@@ -169,10 +183,7 @@ export default function InventoryScreen({ navigation }) {
   const [steamPrices, setSteamPrices] = useState({});
 
   useFocusEffect(
-    useCallback(() => {
-      loadInventory();
-      loadBalance();
-    }, [])
+    useCallback(() => { loadInventory(); loadBalance(); }, [])
   );
 
   const loadBalance = async () => {
@@ -184,16 +195,12 @@ export default function InventoryScreen({ navigation }) {
 
   const loadInventory = async () => {
     setLoading(true);
-    setSteamPrices({}); 
+    setSteamPrices({});
     try {
       const user = await getStoredUser();
-      if (!user?.steamId) { setLoading(false); return; }
-
+      if (!user?.steamId) return;
       const data = await fetchInventory(user.steamId);
-      if (data.success) {
-        const mapped = (data.items || []).map(mapSteamItem);
-        setItems(mapped);
-      }
+      if (data.success) setItems((data.items || []).map(mapSteamItem));
     } catch (err) {
       console.log('❌ loadInventory error:', err);
     } finally {
@@ -202,19 +209,16 @@ export default function InventoryScreen({ navigation }) {
   };
 
   const mapSteamItem = (item) => {
-    const name  = item.market_hash_name || item.name || '';
+    const name = item.market_hash_name || item.name || '';
     const parts = name.split('|');
     const itemId = item.assetid || item.assetId || item.id || Math.random().toString();
-    const extractedWear = item.wear || extractWear(parts[1] || '');
-
     return {
       id: itemId, assetId: itemId, name,
       weapon: parts[0]?.trim() || 'Unknown',
       skin: parts[1]?.trim().replace(/\(.*\)/, '').trim() || '',
-      wear: extractedWear,
+      wear: item.wear || parts[1]?.match(/\((.*?)\)/)?.[1] || null,
       price: item.marketPriceTHB || item.price || 0,
-      priceUSD: item.marketPriceUSD || 0,
-      rarity: item.rarity || 'Mil-Spec Grade', 
+      rarity: item.rarity || 'Mil-Spec Grade',
       rarityColor: item.rarityColor || colors.rarityMilSpec,
       image: item.image || (item.icon_url ? `https://steamcommunity-a.akamaihd.net/economy/image/${item.icon_url}` : null),
       float: item.float ?? null,
@@ -223,11 +227,6 @@ export default function InventoryScreen({ navigation }) {
       category: item.category || 'Guns',
       listed: item.listed || false,
     };
-  };
-
-  const extractWear = (str) => {
-    const m = str.match(/\((.*?)\)/);
-    return m ? m[1] : null;
   };
 
   const handlePriceLoaded = useCallback((id, price) => {
@@ -241,23 +240,33 @@ export default function InventoryScreen({ navigation }) {
       (i.skin || '').toLowerCase().includes(search.toLowerCase())
     );
     if (activeFilter === 'Trade Lock') result = result.filter(i => i.tradeLock);
-    if (activeFilter === 'Sellable')   result = result.filter(i => !i.tradeLock && !i.listed);
+    if (activeFilter === 'Sellable') result = result.filter(i => !i.tradeLock && !i.listed);
     if (activeFilter === 'Containers') result = result.filter(i => i.category === 'Cases');
     return result;
   }, [search, activeFilter, items]);
 
-  const totalValue = useMemo(() => {
-    return items.reduce((sum, item) => sum + (steamPrices[item.id] ?? item.price ?? 0), 0);
-  }, [items, steamPrices]);
+  const totalValue = useMemo(() =>
+    items.reduce((sum, item) => sum + (steamPrices[item.id] ?? item.price ?? 0), 0),
+    [items, steamPrices]
+  );
 
   const steamLoadedCount = Object.keys(steamPrices).length;
 
   return (
     <View style={s.container}>
-      <LinearGradient colors={[colors.background, '#000000']} style={StyleSheet.absoluteFill} />
-      
+      {/* Layer 1: SVG Background */}
+      <View style={StyleSheet.absoluteFill}>
+        <SvgXml xml={xmlData} width="100%" height="100%" preserveAspectRatio="xMidYMid slice" />
+      </View>
+
+      {/* Layer 2: Gradient Overlay */}
+      <LinearGradient
+        colors={['rgba(19, 18, 19, 0.7)', 'rgba(0, 0, 0, 0.9)']}
+        style={StyleSheet.absoluteFill}
+      />
+
       <SafeAreaView style={s.safe} edges={['top']}>
-        {/* --- Top Nav --- */}
+        {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle}>INVENTORY</Text>
           <View style={s.headerRight}>
@@ -270,12 +279,13 @@ export default function InventoryScreen({ navigation }) {
           </View>
         </View>
 
-        {/* --- Value Banner (Glass) --- */}
+        {/* Value Banner */}
         <View style={s.bannerWrapper}>
           <View style={s.valueBanner}>
-            <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-            <LinearGradient colors={['rgba(255,255,255,0.05)', 'transparent']} style={StyleSheet.absoluteFill} />
-            
+            <LinearGradient
+              colors={['rgba(255,255,255,0.05)', 'transparent']}
+              style={StyleSheet.absoluteFill}
+            />
             <View style={s.bannerContent}>
               <View>
                 <Text style={s.valueLabel}>TOTAL VALUE</Text>
@@ -290,7 +300,6 @@ export default function InventoryScreen({ navigation }) {
                 </View>
                 <Text style={s.valueCount}>{items.length} ITEMS</Text>
               </View>
-
               <View style={s.valueRight}>
                 <View style={s.balanceBadge}>
                   <Text style={s.balanceText}>BAL: ฿{balance.toLocaleString()}</Text>
@@ -303,7 +312,7 @@ export default function InventoryScreen({ navigation }) {
           </View>
         </View>
 
-        {/* --- Search & Filters --- */}
+        {/* Search & Filters */}
         <View style={s.filterSection}>
           <View style={s.searchBox}>
             <Feather name="search" size={16} color={colors.textMuted} />
@@ -322,13 +331,15 @@ export default function InventoryScreen({ navigation }) {
                 style={[s.filterPill, activeFilter === f && s.filterPillActive]}
                 onPress={() => setActiveFilter(activeFilter === f ? null : f)}
               >
-                <Text style={[s.filterPillText, activeFilter === f && s.filterPillTextActive]}>{f.toUpperCase()}</Text>
+                <Text style={[s.filterPillText, activeFilter === f && s.filterPillTextActive]}>
+                  {f.toUpperCase()}
+                </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
 
-        {/* --- Item Grid --- */}
+        {/* Item Grid */}
         {loading ? (
           <View style={s.loadingBox}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -341,11 +352,15 @@ export default function InventoryScreen({ navigation }) {
             numColumns={2}
             contentContainerStyle={s.grid}
             showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            initialNumToRender={8}
+            maxToRenderPerBatch={10}
+            windowSize={5}
             renderItem={({ item }) => (
               <ItemCard
                 item={item}
                 onPress={() => navigation.navigate('ItemDetail', { item })}
-                onSell={(item) => navigation.navigate('Sell', { item })}
+                onSell={(it) => navigation.navigate('Sell', { item: it })}
                 onPriceLoaded={handlePriceLoaded}
               />
             )}
@@ -366,25 +381,26 @@ export default function InventoryScreen({ navigation }) {
 // 4. STYLES
 // ==========================================
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, backgroundColor: '#000' },
   safe: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 12,
   },
-  headerTitle: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 20, fontStyle: 'italic', letterSpacing: 1 },
+  headerTitle: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 22, fontStyle: 'italic', letterSpacing: 1 },
   headerRight: { flexDirection: 'row', gap: 12 },
   iconBtn: { padding: 4 },
 
   bannerWrapper: { paddingHorizontal: 16, paddingBottom: 16 },
   valueBanner: {
-    borderRadius: 20, overflow: 'hidden', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(76, 44, 52, 0.4)', // ใช้สี surface แบบโปร่งแสง
+    borderRadius: 20, overflow: 'hidden',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   bannerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
   valueLabel: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 10, letterSpacing: 1.5 },
   valuePriceRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 2 },
-  valueAmount: { color: colors.primary, fontFamily: 'Rajdhani_700Bold', fontSize: 24 },
+  valueAmount: { color: colors.primary, fontFamily: 'Rajdhani_700Bold', fontSize: 26 },
   liveTag: {
     flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8,
     backgroundColor: 'rgba(236, 100, 108, 0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
@@ -398,15 +414,14 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.05)',
   },
   balanceText: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 10 },
-  sellAllBtn: {
-    backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
-  },
+  sellAllBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
   sellAllText: { color: '#000', fontFamily: 'Rajdhani_700Bold', fontSize: 12 },
 
   filterSection: { paddingHorizontal: 16, paddingBottom: 10 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 12, paddingHorizontal: 14, height: 44, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12, paddingHorizontal: 14, height: 44,
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
   },
   searchInput: { flex: 1, color: colors.textPrimary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 13, marginLeft: 10 },
   filterRow: { marginTop: 12, gap: 8 },
@@ -428,11 +443,11 @@ const s = StyleSheet.create({
 const cs = StyleSheet.create({
   wrapper: { flex: 1, margin: 6 },
   card: {
-    borderRadius: 16, overflow: 'hidden', backgroundColor: 'rgba(76, 44, 52, 0.2)',
-    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)', position: 'relative',
+    borderRadius: 16, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.1)',
   },
-  imageBox: { height: 110, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  glowLayer: { position: 'absolute' },
+  imageBox: { height: 110, alignItems: 'center', justifyContent: 'center' },
   image: { width: '80%', height: '80%', zIndex: 10 },
   stBadge: {
     position: 'absolute', top: 8, left: 8, backgroundColor: '#CF6A32',
@@ -441,14 +456,31 @@ const cs = StyleSheet.create({
   stText: { color: '#FFF', fontFamily: 'Rajdhani_700Bold', fontSize: 7 },
   lockBadge: {
     position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 5, paddingVertical: 4, borderRadius: 4, zIndex: 15,
+    padding: 5, borderRadius: 4, zIndex: 15,
   },
   listedOverlay: {
-    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', zIndex: 20, overflow: 'hidden'
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+    borderRadius: 16,
   },
-  listedOverlayText: { color: colors.primary, fontFamily: 'Rajdhani_700Bold', fontSize: 14, letterSpacing: 2 },
-  info: { padding: 12, backgroundColor: 'rgba(0,0,0,0.3)' },
-  weapon: { color: colors.textSecondary, fontFamily: 'Rajdhani_600SemiBold', fontSize: 9, letterSpacing: 1 },
+  listedOverlayInner: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  listedOverlayIcon: {
+    fontSize: 28,
+  },
+  listedOverlayText: {
+    color: colors.primary,
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 16,
+    letterSpacing: 3,
+  },
+  info: { padding: 12, backgroundColor: 'rgba(0,0,0,0.4)' },
+  weapon: { color: colors.textMuted, fontFamily: 'Rajdhani_600SemiBold', fontSize: 9, letterSpacing: 1 },
   skin: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 14, marginTop: 2, fontStyle: 'italic' },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 8 },
   wearBadge: { paddingHorizontal: 4, paddingVertical: 1, borderRadius: 3, borderWidth: 0.5 },
@@ -459,13 +491,11 @@ const cs = StyleSheet.create({
   priceFallback: { color: colors.textSecondary },
   liveDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.primary },
   bottomNeonLine: { height: 1.5, width: '100%' },
-  
   sellBtn: {
     backgroundColor: 'rgba(255,255,255,0.05)', marginTop: 4, borderRadius: 8,
     paddingVertical: 10, alignItems: 'center', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.05)',
   },
-  sellBtnLocked: { backgroundColor: 'rgba(0,0,0,0.3)' },
-  sellBtnListed: { backgroundColor: 'rgba(236, 100, 108, 0.1)' },
+  sellBtnLocked: { opacity: 0.4 },
   sellBtnText: { color: colors.textPrimary, fontFamily: 'Rajdhani_700Bold', fontSize: 11, letterSpacing: 1 },
   sellBtnTextMuted: { color: colors.textMuted },
 });

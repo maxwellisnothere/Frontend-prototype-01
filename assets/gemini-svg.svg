@@ -1,0 +1,23 @@
+<svg width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="smooth_blur" x="-300" y="-300" width="1400" height="1400" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="100"/>
+    </filter>
+    
+    <filter id="grain_effect" x="0" y="0" width="800" height="800" filterUnits="userSpaceOnUse">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.15 0" in="noise"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="800" fill="#020202"/>
+
+  <g filter="url(#smooth_blur)">
+    <circle cx="100" cy="700" r="250" fill="#0A2472" fill-opacity="0.5"/>
+    <circle cx="750" cy="400" r="200" fill="#1E3A8A" fill-opacity="0.3"/>
+    <circle cx="700" cy="100" r="180" fill="#00072D" fill-opacity="0.6"/>
+  </g>
+
+  <rect width="800" height="800" filter="url(#grain_effect)" opacity="0.6"/>
+</svg>

@@ -1,131 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, Platform } from 'react-native';
-import { BlurView } from "expo-blur";
-import { colors } from "../theme/colors";
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import GlowBackground from './GlowBackground'; // 🟢 ดึง SVG ที่เราสร้างมาใช้
+import { formatPrice } from '../data/items';
 
-// 🟢 ฟังก์ชันจัดสรร URL ให้รองรับทั้ง Local Server และ Mock Data เดิม
-const getValidImageUrl = (url) => {
-  const fallback = "https://community.akamai.steamstatic.com/public/images/economy/appIconFallback.png";
-  if (!url) return fallback;
-
-  // 1. ถ้าเป็นรูปจาก Backend ของเราเอง ปล่อยผ่านได้เลย!
-  if (url.includes('10.0.2.2') || url.includes('localhost') || url.includes('/uploads/')) {
-    return url;
-  }
-
-  // 2. ถ้าเป็นรูปจาก Steam (อาจจะมาจาก Mock Data หน้า Home) ให้ล้างคำผิดก่อน
-  return url
-    .replace(/\s+/g, '') // 🔥 กวาดช่องว่าง (space) ทิ้งให้หมด! (ตัวการหลักจาก Log)
-    .replace(/akamaihdd+/g, 'akamaihd')
-    .replace(/aka+maihd/g, 'akamaihd')
-    .replace(/\.neet/g, '.net')
-    .replace(/economyy+/g, 'economy')
-    .replace(/immage+/g, 'image')
-    .replace(/steamsta+ti+c+/g, 'steamstatic') // ดัก steamstattic, steamstatiic
-    .replace(/([^:])\/\/+/g, '$1/'); 
-};
-
-export default function HorizontalCard({ data, onPress, isTrend = false }) {
-  const itemInfo = isTrend ? data : (data.item || data);
-  const price = data.price || itemInfo.basePrice;
+export default function HorizontalCard({ data, isTrend, onPress }) {
+  // ดึงข้อมูลไอเทม (รองรับทั้งโครงสร้างแบบซ้อนและไม่ซ้อน)
+  const item = data?.item || data;
   
-  // 🟢 ประมวลผล URL ของรูปภาพ
-  const rawImage = itemInfo.image || itemInfo.icon_url;
-  const [imgSource, setImgSource] = useState({ uri: getValidImageUrl(rawImage) });
+  if (!item) return null;
 
-  useEffect(() => {
-    setImgSource({ uri: getValidImageUrl(rawImage) });
-  }, [rawImage]);
+  const rarityColor = item?.rarityColor || '#4B69FF';
+  const safePrice = item?.price || item?.basePrice || 0;
 
-  const rarityColor = itemInfo.rarityColor || '#4B69FF';
-  const name = itemInfo.name || itemInfo.weapon || "Unknown Item";
+  // 🟢 จำลองตัวเลขราคาขึ้น-ลง (ถ้า Backend ส่ง item.trend มาจะใช้ค่านั้น ถ้าไม่มีจะสุ่มตัวเลขหลอกๆ ขึ้นมาให้ดูสวยงาม)
+  const trendValue = item?.trend || (Math.random() * 8 - 2).toFixed(2); // สุ่มค่า -2% ถึง +6%
+  const isUp = parseFloat(trendValue) > 0;
 
   return (
-    <TouchableOpacity style={styles.horizontalCardStyle} activeOpacity={0.8} onPress={onPress}>
-      <BlurView intensity={Platform.OS === 'android' ? 60 : 30} tint="dark" style={StyleSheet.absoluteFill} />
-      
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+      {/* เอฟเฟกต์กระจกบางๆ */}
+      <LinearGradient
+        colors={['rgba(255, 255, 255, 0.08)', 'rgba(255, 255, 255, 0.01)']}
+        style={StyleSheet.absoluteFill}
+      />
+
       <View style={styles.imageBox}>
-        <Image 
-          source={imgSource} 
-          style={styles.cardImage} 
-          resizeMode="contain"
-          onError={(e) => {
-            console.warn(`🖼️ รูปไม่ขึ้น (${name}):`, e.nativeEvent.error);
-            // ถ้ารูปยังพังอีก ให้สลับไปใช้ Fallback ทันที
-            setImgSource({ uri: "https://community.akamai.steamstatic.com/public/images/economy/appIconFallback.png" });
-          }}
-        />
-      </View>
-
-      <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
-      
-      <View style={styles.cardPriceRow}>
-        <Text style={styles.cardPrice}>
-          {price ? (typeof price === 'string' ? price : `฿${Number(price).toLocaleString()}`) : "N/A"}
-        </Text>
+        {/* 🟢 ใช้ SVG Glow ตามสีความหายาก เหมือนใน ItemCard เลย */}
+        <GlowBackground color={rarityColor} />
         
-        {isTrend && data.change && (
-          <View style={[styles.trendBadge, { backgroundColor: data.isUp ? 'rgba(74, 222, 128, 0.2)' : 'rgba(248, 113, 113, 0.2)' }]}>
-            <Text style={[styles.trendChange, { color: data.isUp ? '#4ade80' : '#f87171' }]}>
-              {data.change}
-            </Text>
-          </View>
-        )}
+        <Image source={{ uri: item?.image }} style={styles.image} resizeMode="contain" />
       </View>
 
+      <View style={styles.info}>
+        <Text style={styles.weaponName}>{item?.weapon || 'WEAPON'}</Text>
+        <Text style={styles.skinName} numberOfLines={1}>{item?.skin || 'SKIN'}</Text>
+        
+        <View style={styles.priceRow}>
+          <Text style={styles.priceText}>{formatPrice(safePrice)}</Text>
+          
+          {/* 🟢 แสดงเปอร์เซ็นต์ราคาขึ้น-ลง (สีเขียว = ขึ้น, สีแดง = ลง) */}
+          {isTrend && (
+            <View style={[styles.trendBadge, { backgroundColor: isUp ? 'rgba(0, 255, 102, 0.15)' : 'rgba(255, 0, 85, 0.15)' }]}>
+              <Text style={[styles.trendText, { color: isUp ? '#00FF66' : '#FF0055' }]}>
+                {isUp ? '▲' : '▼'} {Math.abs(trendValue)}%
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+      
+      {/* เส้นนีออนบางๆ ด้านล่างเพื่อความสวยงาม */}
       <View style={[styles.bottomLine, { backgroundColor: rarityColor }]} />
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  horizontalCardStyle: {
-    width: 150,
-    borderRadius: 16,
-    padding: 12,
-    marginRight: 12,
-    marginBottom: 5,
-    borderWidth: 0.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    position: 'relative',
-    overflow: 'hidden',
+  card: {
+    width: 160, // กำหนดความกว้างตายตัว เพื่อให้เรียงกันและเลื่อนซ้าย-ขวาได้สวยงาม
+    height: 200,
     backgroundColor: '#070B14',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
   },
   imageBox: {
-    height: 80,
-    width: '100%',
+    height: 110,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
-  cardImage: { 
-    width: '90%', 
-    height: '90%',
+  image: {
+    width: '85%',
+    height: '85%',
+    zIndex: 10,
   },
-  cardName: { 
-    color: colors.textPrimary, 
-    fontFamily: 'Rajdhani_600SemiBold', 
-    fontSize: 12, 
-    marginBottom: 8 
+  info: {
+    padding: 12,
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
-  cardPriceRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center' 
+  weaponName: {
+    fontFamily: 'Rajdhani_600SemiBold',
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 10,
+    letterSpacing: 1,
   },
-  cardPrice: { 
+  skinName: {
+    fontFamily: 'Rajdhani_700Bold',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  priceText: {
+    fontFamily: 'Rajdhani_700Bold',
     color: '#a5e24f',
-    fontFamily: 'Rajdhani_700Bold', 
-    fontSize: 13 
+    fontSize: 15,
   },
-  trendBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  trendChange: { fontFamily: 'Rajdhani_700Bold', fontSize: 10 },
+  trendBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  trendText: {
+    fontFamily: 'Rajdhani_700Bold',
+    fontSize: 10,
+  },
   bottomLine: {
     position: 'absolute',
     bottom: 0,
-    left: 0,
-    right: 0,
+    width: '100%',
     height: 2,
-    opacity: 0.8,
-  }
+  },
 });
